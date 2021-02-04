@@ -1,6 +1,14 @@
 # Compiled class file
 *.class
 
+# Generated testcases
+COMPONENT/testcases/*.out
+COMPONENT/testcases/*.in
+COMPONENT/testcases/*.md
+COMPONENT/testcases/*.stat
+COMPONENT/testcases/*.txt
+COMPONENT/testcases/*.tbl
+
 # Log file
 *.log
 
