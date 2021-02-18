@@ -76,6 +76,8 @@ public class PlanCost {
             return getStatistics((Project) node);
         } else if (node.getOpType() == OpType.SCAN) {
             return getStatistics((Scan) node);
+        } else if (node.getOpType() == OpType.DISTINCT) {
+            return getStatistics((Distinct) node);
         }
         System.out.println("operator is not supported");
         isFeasible = false;
@@ -87,6 +89,10 @@ public class PlanCost {
      * * No cost involved as done on the fly
      **/
     protected long getStatistics(Project node) {
+        return calculateCost(node.getBase());
+    }
+
+    protected long getStatistics(Distinct node) {
         return calculateCost(node.getBase());
     }
 
