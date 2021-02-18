@@ -157,9 +157,9 @@ public class NestedJoin extends Join {
                                 }
                             }
                         }
-                        rcurs = 0;
+                        rcurs = 0; // need to fetch a new page of right
                     }
-                    lcurs = 0;
+                    lcurs = 0; // need to fetch a new page of left
                 } catch (EOFException e) {
                     try {
                         in.close();
