@@ -121,13 +121,4 @@ public class Tuple implements Serializable {
         }
         return 0;
     }
-
-    public static int hashCode(Tuple tup) {
-        int sum = 0; 
-        for (Object item : tup.data()) {
-            sum += item.toString().hashCode();
-        }
-
-        return sum;
-    }
 }

@@ -1,10 +1,8 @@
 package qp.operators;
 
-import java.io.FileOutputStream;
-import java.io.ObjectOutputStream;
-
 import qp.utils.Batch;
 import qp.utils.Tuple;
+import qp.utils.TupleWriter;
 
 
 public class Distinct extends Operator {
@@ -93,53 +91,41 @@ public class Distinct extends Operator {
 
     public void partition(Operator openBase, int numOutputBuckets, int batchsize) {
 
-        // Initialize the buckets
-        Batch[] outputBuckets = new Batch[numOutputBuckets];
-        for (int i = 0; i < numOutputBuckets; i++) {
-            outputBuckets[i] = new Batch(batchsize);
-        }
-
-        // Initialize the output streams
-        ObjectOutputStream[] outStreams = new ObjectOutputStream[numOutputBuckets]; 
+        // Initialize the output streams / output buckets
+        TupleWriter[] outputPartitions = new TupleWriter[numOutputBuckets]; 
         for (int i = 0; i < numOutputBuckets; i++) {
             String fileName = this.hashCode() + "-Partition-" + i + ".tmp";
             try {
-                outStreams[i] = new ObjectOutputStream(new FileOutputStream(fileName));
+                outputPartitions[i] = new TupleWriter(fileName, batchsize);
+                outputPartitions[i].open(); 
             } catch (Exception e) {
                 System.out.println("Failed to create outStreams!");
                 System.exit(1);
             }
         }
 
-        System.out.println("Just before readin..."); 
         this.inbatch = openBase.next(); 
-        System.out.println("I can read something at least!"); 
 
         while (this.inbatch != null) {
             for (int i = 0; i < inbatch.size(); i++) {
                 Tuple tup = inbatch.get(i); 
-                int candidateBucket = Tuple.hashCode(tup)%numOutputBuckets;
-                outputBuckets[candidateBucket].add(tup);
-                if (outputBuckets[candidateBucket].isFull()) {
-                    try {
-                        outStreams[candidateBucket].writeObject(outputBuckets[candidateBucket]);
-                    } catch (Exception e) {
-                        System.out.println("Failed to write to an outStream!"); 
-                    }
-                    outputBuckets[candidateBucket] = new Batch(batchsize);
-                }
+                int candidateBucket = hashTuple(tup)%numOutputBuckets;
+                Debug.PPrint(tup);
+                outputPartitions[candidateBucket].next(tup);
             }
             this.inbatch = base.next(); 
         }
 
         for (int i=0; i<numOutputBuckets; i++) {
-            System.out.println("Writing partitions after end!"); 
-            try {
-                outStreams[i].writeObject(outputBuckets[i]);
-            } catch (Exception e) {
-                System.out.println("Failed to write to an outStream!"); 
-            }
-            outputBuckets[i] = null; 
+            outputPartitions[i].close();
         }
+    }
+
+    public int hashTuple(Tuple tup) {
+        int sum = 0; 
+        for (Object item : tup.data()) {
+            sum += item.toString().hashCode();
+        }
+        return sum;
     }
 }
