@@ -93,6 +93,7 @@ public class PlanCost {
     }
 
     protected long getStatistics(Distinct node) {
+        // TODO 
         return calculateCost(node.getBase());
     }
 
