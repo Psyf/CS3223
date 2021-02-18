@@ -10,6 +10,7 @@ import qp.utils.Attribute;
 import qp.utils.Batch;
 import qp.utils.Condition;
 import qp.utils.Schema;
+import qp.utils.LogFunction;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -143,6 +144,12 @@ public class PlanCost {
             case JoinType.NESTEDJOIN:
                 joincost = leftpages * rightpages;
                 break;
+            case JoinType.SORTMERGE:
+                long leftcost = calculateSortMergeCost(leftpages, numbuff);
+                long rightcost = calculateSortMergeCost(rightpages, numbuff);
+                long mergecost = leftpages + rightpages;
+                
+                joincost = leftcost + rightcost + mergecost;
             default:
                 System.out.println("join type is not supported");
                 return 0;
@@ -150,6 +157,13 @@ public class PlanCost {
         cost = cost + joincost;
 
         return outtuples;
+    }
+
+    protected long calculateSortMergeCost(long numOfPages, long numBuff) {
+        double value = Math.ceil ((double)numOfPages / (double)numBuff);
+        long numOfLeftPass = (long) 1 + new LogFunction().calculate(value, numBuff - 1);
+        long cost = 2 * numOfPages * numOfLeftPass;
+        return cost;
     }
 
     /**
