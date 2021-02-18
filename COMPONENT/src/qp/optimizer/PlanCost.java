@@ -148,7 +148,7 @@ public class PlanCost {
                 long leftcost = calculateSortMergeCost(leftpages, numbuff);
                 long rightcost = calculateSortMergeCost(rightpages, numbuff);
                 long mergecost = leftpages + rightpages;
-                
+
                 joincost = leftcost + rightcost + mergecost;
             default:
                 System.out.println("join type is not supported");
@@ -161,8 +161,8 @@ public class PlanCost {
 
     protected long calculateSortMergeCost(long numOfPages, long numBuff) {
         double value = Math.ceil ((double)numOfPages / (double)numBuff);
-        long numOfLeftPass = (long) 1 + new LogFunction().calculate(value, numBuff - 1);
-        long cost = 2 * numOfPages * numOfLeftPass;
+        long numOfPass = (long) 1 + new LogFunction().calculate(value, numBuff - 1);
+        long cost = 2 * numOfPages * numOfPass;
         return cost;
     }
 
