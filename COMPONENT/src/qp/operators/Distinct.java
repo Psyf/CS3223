@@ -3,7 +3,7 @@ package qp.operators;
 import qp.utils.Batch;
 import qp.utils.Tuple;
 import qp.utils.TupleWriter;
-
+import qp.utils.TupleReader;
 
 public class Distinct extends Operator {
 
@@ -13,12 +13,14 @@ public class Distinct extends Operator {
     Batch inbatch;
     Batch outbatch;
 
-    int numOutputBuckets; 
+    int numBuffers; 
+
+    int partitionPointer = 0; 
 
     public Distinct(Operator base, int type) {
         super(type);
         this.base = base;
-        this.numOutputBuckets = 10; //TODO random number
+        this.numBuffers = 10; //TODO random number
     }
 
     public Operator getBase() {
@@ -39,37 +41,59 @@ public class Distinct extends Operator {
         batchsize = Batch.getPageSize() / tuplesize;
 
         if (!base.open()) return false;
-        this.partition(base, this.numOutputBuckets, batchsize);
+        else {
+            this.partition(base, this.numBuffers-1, batchsize);
+            return true;
+        } 
 
-        return true;
     }
 
     /**
      * Read next tuple from operator
      */
     public Batch next() {
-        // TODO: for each partition, dedup
-        
-        // TODO: cleanup files
 
-        outbatch = new Batch(batchsize);
-
-        //inbatch = base.next();
-
-        if (inbatch == null) {
+        // exit if all partitions have been tackled
+        if (partitionPointer == this.numBuffers-1) {
             return null;
         }
 
-        for (int i = 0; i < inbatch.size(); i++) {
-            Tuple basetuple = inbatch.get(i);
-            //Debug.PPrint(basetuple);
-            //System.out.println();
+        // for each partition, dedup
+        TupleReader reader = new TupleReader(getTmpFileName(this.partitionPointer), this.batchsize);
+        reader.open(); 
 
-            // TODO: right now does nothing,
-            // TODO: need to modify to
-
-            outbatch.add(basetuple);
+        Batch[] slots = new Batch[this.numBuffers-1]; 
+        for (int j=0; j<this.numBuffers-1; j++) {
+            slots[j] = new Batch(this.batchsize); // Assumption: no slot overflows
         }
+        
+        while (!reader.isEOF()) {
+            Tuple tup = reader.next(); 
+            int candidate = this.hashTupleH2(tup)%(this.numBuffers-1); 
+            if (slots[candidate].contains(tup) == false) {
+                System.out.print("Not in slot. Adding...");
+                Debug.PPrint(tup);
+                slots[candidate].add(tup);
+            } 
+        }
+        
+        reader.close(); 
+
+        outbatch = new Batch(batchsize);
+
+        // TODO: at any point below, outbatch might fill up
+        // TODO: need to recover
+        for (int i=0; i<this.numBuffers-1; i++) {
+            for (int k = 0; k < slots[i].size(); k++) {
+                outbatch.add(slots[i].get(k));
+            }
+        }
+
+        partitionPointer++; 
+        slots = null; 
+
+        // TODO: cleanup files
+        
         return outbatch;
     }
 
@@ -94,7 +118,7 @@ public class Distinct extends Operator {
         // Initialize the output streams / output buckets
         TupleWriter[] outputPartitions = new TupleWriter[numOutputBuckets]; 
         for (int i = 0; i < numOutputBuckets; i++) {
-            String fileName = this.hashCode() + "-Partition-" + i + ".tmp";
+            String fileName = this.getTmpFileName(i);
             try {
                 outputPartitions[i] = new TupleWriter(fileName, batchsize);
                 outputPartitions[i].open(); 
@@ -109,8 +133,7 @@ public class Distinct extends Operator {
         while (this.inbatch != null) {
             for (int i = 0; i < inbatch.size(); i++) {
                 Tuple tup = inbatch.get(i); 
-                int candidateBucket = hashTuple(tup)%numOutputBuckets;
-                Debug.PPrint(tup);
+                int candidateBucket = hashTupleH1(tup)%numOutputBuckets;
                 outputPartitions[candidateBucket].next(tup);
             }
             this.inbatch = base.next(); 
@@ -121,11 +144,25 @@ public class Distinct extends Operator {
         }
     }
 
-    public int hashTuple(Tuple tup) {
+    public int hashTupleH1(Tuple tup) {
         int sum = 0; 
         for (Object item : tup.data()) {
             sum += item.toString().hashCode();
         }
         return sum;
+    }
+
+    public int hashTupleH2(Tuple tup) {
+        int sum = 0; 
+        int multiplier = 1; 
+        for (Object item : tup.data()) {
+            sum += item.toString().hashCode()*multiplier;
+            multiplier *= 2; 
+        }
+        return sum;
+    }
+
+    public String getTmpFileName(int i) {
+        return this.hashCode() + "-Partition-" + i + ".tmp";
     }
 }
