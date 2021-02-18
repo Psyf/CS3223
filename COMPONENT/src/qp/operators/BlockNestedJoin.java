@@ -38,7 +38,6 @@ public class BlockNestedJoin extends Join {
         schema = jn.getSchema();
         jointype = jn.getJoinType();
         numBuff = jn.getNumBuff();
-        this.numPagesPerBlock = Math.max(1, numBuff - 2);
     }
 
     /**
@@ -50,6 +49,7 @@ public class BlockNestedJoin extends Join {
         /** select number of tuples per batch **/
         int tuplesize = schema.getTupleSize();
         batchsize = Batch.getPageSize() / tuplesize;
+        numPagesPerBlock = Math.max(1, numBuff - 2);
         blocksize = batchsize * numPagesPerBlock;
 
         /** find indices attributes of join conditions **/
@@ -112,7 +112,6 @@ public class BlockNestedJoin extends Join {
         if (eosl) {
             return null;
         }
-        System.out.printf("Fetch new block!");
         outbatch = new Batch(batchsize);
         while (!outbatch.isFull()) {
             if (lcurs == 0 && eosr == true) {
@@ -130,6 +129,7 @@ public class BlockNestedJoin extends Join {
                         block.add(leftbatch.get(ti));
                     }
                 }
+                
                 /** Whenever a new left page came, we have to start the
                  ** scanning of right table
                  **/
