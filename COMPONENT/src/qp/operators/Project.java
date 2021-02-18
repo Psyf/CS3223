@@ -4,6 +4,7 @@
 
 package qp.operators;
 
+import qp.utils.AggregateValue;
 import qp.utils.Attribute;
 import qp.utils.Batch;
 import qp.utils.Schema;
@@ -30,7 +31,7 @@ public class Project extends Operator {
      **/
     int[] attrIndex;
 
-    Object[] aggVals;
+    AggregateValue[] aggVals;
     Boolean isAgg = null; 
 
     public Project(Operator base, ArrayList<Attribute> as, int type) {
@@ -69,14 +70,16 @@ public class Project extends Operator {
          **/
         Schema baseSchema = base.getSchema();
         attrIndex = new int[attrset.size()];
-        aggVals = new Object[attrset.size()]; 
+        aggVals = new AggregateValue[attrset.size()]; 
+
         for (int i = 0; i < attrset.size(); ++i) {
             Attribute attr = attrset.get(i);
+            aggVals[i] = new AggregateValue(attr.getAggType());
 
             // Make sure all of em are agg, or none of em are agg
             if (isAgg == null) {
-                isAgg = !(attr.getAggType() == Attribute.NONE);
-            } else if (isAgg != (!(attr.getAggType() == Attribute.NONE)) ) {
+                isAgg = (attr.getAggType() != Attribute.NONE);
+            } else if (isAgg != (attr.getAggType() != Attribute.NONE)) {
                 System.out.println("Cannot mix Aggregate Operators with others!");
                 System.exit(1);
             }
@@ -96,10 +99,11 @@ public class Project extends Operator {
         inbatch = base.next();
 
         if (inbatch == null) {
+            System.out.println("I am here");
             if (isAgg) {
                 ArrayList<Object> result = new ArrayList<>();
                 for (int i=0; i<attrset.size(); i++) {
-                    result.add(aggVals[i]);
+                    result.add(aggVals[i].get());
                 }
                 Tuple outtuple = new Tuple(result);
                 outbatch.add(outtuple);
@@ -117,31 +121,9 @@ public class Project extends Operator {
             ArrayList<Object> present = new ArrayList<>();
             for (int j = 0; j < attrset.size(); j++) {
                 Object data = basetuple.dataAt(attrIndex[j]);
-                if (attrset.get(j).getAggType() == Attribute.MIN) {
-                    if (aggVals[j] == null) {
-                        aggVals[j] = data;
-                    }
-                    else {
-                        aggVals[j] = Math.min((int) aggVals[j], (int) data);
-                    }
-                } else if (attrset.get(j).getAggType() == Attribute.MAX) {
-                    if (aggVals[j] == null) {
-                        aggVals[j] = data;
-                    }
-                    else {
-                        aggVals[j] = Math.max((int) aggVals[j], (int) data);
-                    }
-                } else if (attrset.get(j).getAggType() == Attribute.COUNT) {
-                    if (aggVals[j] == null) {
-                        aggVals[j] = 1;
-                    }
-                    else {
-                        aggVals[j] = (int) aggVals[j] + 1;
-                    }
-                } else if (attrset.get(j).getAggType() == Attribute.AVG) {
-                    // TODO 
-                }
-                else {
+                if (attrset.get(j).getAggType() != Attribute.NONE) {
+                    aggVals[j].record((int) data);
+                } else {
                     present.add(data);
                 }
             }
