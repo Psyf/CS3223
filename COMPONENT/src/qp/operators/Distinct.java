@@ -64,15 +64,13 @@ public class Distinct extends Operator {
 
         Batch[] slots = new Batch[this.numBuffers-1]; 
         for (int j=0; j<this.numBuffers-1; j++) {
-            slots[j] = new Batch(this.batchsize); // Assumption: no slot overflows
+            slots[j] = new Batch(this.batchsize); // Assumption: no slot overflows during probing
         }
         
         while (!reader.isEOF()) {
             Tuple tup = reader.next(); 
             int candidate = this.hashTupleH2(tup)%(this.numBuffers-1); 
-            if (slots[candidate].contains(tup) == false) {
-                System.out.print("Not in slot. Adding...");
-                Debug.PPrint(tup);
+            if (!this.contains(slots[candidate], tup)) {
                 slots[candidate].add(tup);
             } 
         }
@@ -164,5 +162,28 @@ public class Distinct extends Operator {
 
     public String getTmpFileName(int i) {
         return this.hashCode() + "-Partition-" + i + ".tmp";
+    }
+
+    // Have to do it here since can't change Tuple class
+    private boolean equals(Tuple tup, Tuple otherTup) {
+        if (tup.data().size() != otherTup.data().size()) { return false; }
+        else {
+            for (int i = 0; i < tup.data().size(); i++) {
+                if (Tuple.compareTuples(tup, otherTup, i) != 0) { return false; }
+            }
+        } 
+
+        return true; 
+    }
+
+    // Have to do it here since can't change Batch class
+    private boolean contains(Batch batch, Tuple tup) {
+        for (int i = 0; i < batch.size(); i++) {
+            if (equals(batch.get(i), tup)) {
+                return true; 
+            }
+        }
+
+        return false; 
     }
 }
