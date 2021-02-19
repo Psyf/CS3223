@@ -24,7 +24,6 @@ public class Distinct extends Operator {
     public Distinct(Operator base, int type) {
         super(type);
         this.base = base;
-        this.numBuffers = 10; //TODO random number
         this.uid = RandNumb.randInt(0, 1000000);
     }
 
@@ -36,6 +35,10 @@ public class Distinct extends Operator {
         this.base = base;
     }
 
+    public void setNumBuff(int numBuff) {
+        System.out.println (numBuff); 
+        this.numBuffers = numBuff; 
+    }
 
     /**
      * Opens the connection to the base operator
@@ -118,7 +121,7 @@ public class Distinct extends Operator {
     }
 
     public void partition(Operator openBase, int numOutputBuckets, int batchsize) {
-
+        
         // Initialize the output streams / output buckets
         TupleWriter[] outputPartitions = new TupleWriter[numOutputBuckets]; 
         for (int i = 0; i < numOutputBuckets; i++) {
