@@ -14,6 +14,7 @@ import qp.utils.Schema;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.Buffer;
 import java.util.HashMap;
 import java.util.StringTokenizer;
 
@@ -93,8 +94,17 @@ public class PlanCost {
     }
 
     protected long getStatistics(Distinct node) {
-        // TODO 
-        return calculateCost(node.getBase());
+        long numTuples = calculateCost(node.getBase());
+        long tupleSize = node.getSchema().getTupleSize(); 
+        long tuplesPerPage = Math.max(1, Batch.getPageSize() / tupleSize); 
+        long numPages = (long) Math.ceil((double) numTuples / (double) tuplesPerPage); 
+
+        // Assume uniform distribution
+        // Assume no partition overflow
+        // Ignore cost to output
+        cost = cost + 3*numPages; 
+
+        return numTuples;
     }
 
     /**
