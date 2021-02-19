@@ -99,7 +99,6 @@ public class Project extends Operator {
         inbatch = base.next();
 
         if (inbatch == null) {
-            System.out.println("I am here");
             if (isAgg) {
                 ArrayList<Object> result = new ArrayList<>();
                 for (int i=0; i<attrset.size(); i++) {
