@@ -12,6 +12,8 @@ import java.io.*;
  */
 public class Tuple implements Serializable {
 
+    private static final long serialVersionUID = 1928781161746223552L;
+
     public ArrayList<Object> _data;
 
     public Tuple(ArrayList<Object> d) {
@@ -120,5 +122,20 @@ public class Tuple implements Serializable {
             }
         }
         return 0;
+    }
+
+    @Override
+    public boolean equals(Object v) {
+        if (!(v instanceof Tuple)) return false;  
+
+        Tuple otherTup = (Tuple) v;
+        if (this.data().size() != otherTup.data().size()) { return false; }
+        else {
+            for (int i = 0; i < this.data().size(); i++) {
+                if (Tuple.compareTuples(this, otherTup, i) != 0) { return false; }
+            }
+        } 
+
+        return true; 
     }
 }
