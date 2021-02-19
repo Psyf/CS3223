@@ -1,9 +1,11 @@
 package qp.operators;
 
 import qp.utils.Batch;
+import qp.utils.RandNumb;
 import qp.utils.Tuple;
 import qp.utils.TupleWriter;
 import qp.utils.TupleReader;
+import java.io.File; 
 
 public class Distinct extends Operator {
 
@@ -17,10 +19,13 @@ public class Distinct extends Operator {
 
     int partitionPointer = 0; 
 
+    int uid; 
+
     public Distinct(Operator base, int type) {
         super(type);
         this.base = base;
         this.numBuffers = 10; //TODO random number
+        this.uid = RandNumb.randInt(0, 1000000);
     }
 
     public Operator getBase() {
@@ -89,8 +94,6 @@ public class Distinct extends Operator {
 
         partitionPointer++; 
         slots = null; 
-
-        // TODO: cleanup files
         
         return outbatch;
     }
@@ -99,6 +102,9 @@ public class Distinct extends Operator {
      * Close the operator
      */
     public boolean close() {
+
+        this.cleanupTmpFiles(this.numBuffers - 1);
+
         inbatch = null;
         base.close();
         return true;
@@ -160,7 +166,16 @@ public class Distinct extends Operator {
         return sum;
     }
 
-    public String getTmpFileName(int i) {
-        return this.hashCode() + "-Partition-" + i + ".tmp";
+    private String getTmpFileName(int i) {
+        return this.hashCode() + "-Partition-" + this.uid + "-" + i + ".tmp";
+    }
+
+    private void cleanupTmpFiles(int numFiles) {
+        for (int i = 0; i < numFiles; i++) {
+            File tmpFile = new File(this.getTmpFileName(i)); 
+            if (!tmpFile.delete()) {
+                System.out.println("Could not delete file!");
+            }
+        }
     }
 }
