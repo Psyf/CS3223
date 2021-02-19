@@ -98,13 +98,29 @@ public class PlanCost {
         long tupleSize = node.getSchema().getTupleSize(); 
         long tuplesPerPage = Math.max(1, Batch.getPageSize() / tupleSize); 
         long numPages = (long) Math.ceil((double) numTuples / (double) tuplesPerPage); 
+        long outputBuffers = BufferManager.getNumBuffers() - 1;
 
         // Assume uniform distribution
         // Assume no partition overflow
+        // Assume worst-case: no duplicates
         // Ignore cost to output
-        cost = cost + 3*numPages; 
+        // TODO: Leverage .stat file to have a better cost estimate 
+        long numPagesPerPartition = (long) Math.ceil((double) numPages / ((double) outputBuffers)); 
 
-        return numTuples;
+        // System.out.println(); 
+        // System.out.printf("tupleSize = %d\n", tupleSize);
+        // System.out.printf("tuplesPerPage = %d\n", tuplesPerPage);
+        // System.out.printf("numPages = %d\n", numPages);
+        // System.out.printf("outputBuffers = %d\n", outputBuffers);
+        // System.out.printf("numPagesPerPartition = %d\n", numPagesPerPartition);
+
+        if (numPagesPerPartition > outputBuffers) {
+            this.isFeasible = false; 
+            return 0;
+        } else {
+            cost = cost + 3*numPages; 
+            return numTuples;
+        }
     }
 
     /**
