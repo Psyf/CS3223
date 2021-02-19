@@ -69,7 +69,7 @@ public class RandomOptimizer {
         } else if (node.getOpType() == OpType.DISTINCT) {
             Operator base = makeExecPlan(((Distinct) node).getBase());
             ((Distinct) node).setBase(base);
-            ((Distinct) node).setNumBuff(BufferManager.numBuffer);
+            ((Distinct) node).setNumBuff(BufferManager.getNumBuffers());
             return node;
         } else {
             return node;

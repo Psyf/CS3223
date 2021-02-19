@@ -36,7 +36,6 @@ public class Distinct extends Operator {
     }
 
     public void setNumBuff(int numBuff) {
-        System.out.println (numBuff); 
         this.numBuffers = numBuff; 
     }
 
