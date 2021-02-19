@@ -2,16 +2,16 @@ package qp.utils;
 
 public class AggregateValue {
     int type; 
-    Object val; 
+    int val; 
     int count = 0; // used for avg only
     int sum = 0; // used for avg only
 
     public AggregateValue(int type) {
         this.type = type; 
-        if (type == Attribute.MAX) { this.val = (Object) Long.MIN_VALUE; }
-        else if (type == Attribute.MIN) { this.val = (Object) Long.MAX_VALUE; }
-        else if (type == Attribute.COUNT) { this.val = (Object) 0; }
-        else if (type == Attribute.SUM) { this.val = (Object) 0; }
+        if (type == Attribute.MAX) { this.val = Integer.MIN_VALUE; }
+        else if (type == Attribute.MIN) { this.val = Integer.MAX_VALUE; }
+        else if (type == Attribute.COUNT) { this.val = 0; }
+        else if (type == Attribute.SUM) { this.val = 0; }
     }
 
     public void record(int val) {
@@ -31,7 +31,7 @@ public class AggregateValue {
 
     public int get() {
         if (!(this.type == Attribute.AVG)) {
-            return (int) this.val;
+            return this.val;
         } else {
             return (this.sum / this.count);
         }
