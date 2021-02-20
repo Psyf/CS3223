@@ -6,6 +6,7 @@ package qp.operators;
 
 import qp.utils.Attribute;
 import qp.utils.Batch;
+import qp.utils.Block;
 import qp.utils.Condition;
 import qp.utils.Tuple;
 
@@ -29,9 +30,7 @@ public class BlockNestedJoin extends Join {
     boolean eosl;                   // Whether end of stream (left table) is reached
     boolean eosr;                   // Whether end of stream (right table) is reached
     
-    int blocksize;                  // tuples per block
-    int numPagesPerBlock;
-    ArrayList<Tuple> block;         // Because batch represents a page and pages make a block 
+    Block block;                    // BLOCK FOR BLOCK JOIN!!
 
     public BlockNestedJoin(Join jn) {
         super(jn.getLeft(), jn.getRight(), jn.getConditionList(), jn.getOpType());
@@ -49,8 +48,9 @@ public class BlockNestedJoin extends Join {
         /** select number of tuples per batch **/
         int tuplesize = schema.getTupleSize();
         batchsize = Batch.getPageSize() / tuplesize;
-        numPagesPerBlock = Math.max(1, numBuff - 2);
-        blocksize = batchsize * numPagesPerBlock;
+
+        /** initialise the block used for the join */
+        block = new Block(tuplesize, numBuff);
 
         /** find indices attributes of join conditions **/
         leftindex = new ArrayList<>();
@@ -116,9 +116,9 @@ public class BlockNestedJoin extends Join {
         while (!outbatch.isFull()) {
             if (lcurs == 0 && eosr == true) {
                 /** reset block */
-                block = new ArrayList<Tuple>();
+                block.clear();
                 /** new block needs to be prepared by fetching left pages **/
-                while(block.size() < blocksize) {
+                while(block.size() < block.getBlockSize()) {
                     leftbatch = left.next();        // fetch a new page -> refer to next() in Scan.java
                     if (leftbatch == null) {        // no more left pages to be fetched!
                         eosl = true;
@@ -129,6 +129,8 @@ public class BlockNestedJoin extends Join {
                         block.add(leftbatch.get(ti));
                     }
                 }
+                // Debug.PPrint(block);
+                // System.out.println("==========");
                 
                 /** Whenever a new left page came, we have to start the
                  ** scanning of right table
