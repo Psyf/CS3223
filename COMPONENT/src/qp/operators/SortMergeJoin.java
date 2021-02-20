@@ -1,6 +1,5 @@
 package qp.operators;
 
-import java.io.ObjectInputStream;
 import java.util.ArrayList;
 
 import qp.utils.Attribute;
@@ -121,10 +120,8 @@ public class SortMergeJoin extends Join  {
                 }
                 
             } else if (compareResult < 0) {
-                // Scan left 
                 leftTuple = getNextLeftTuple();
             } else if (compareResult > 0) {
-                // Scan right
                 rightTuple = getNextRightTuple();
             }
         }
@@ -167,20 +164,9 @@ public class SortMergeJoin extends Join  {
         return null;
     }
 
-    void scanLeft(Tuple leftTuple, Tuple rightTuple) {
-        while (Tuple.compareTuples(leftTuple, rightTuple, leftIndex, rightIndex) <= 0) {
-            if (leftTuple.checkJoin(rightTuple, leftindex, rightindex)) {
-                // Key is the same, join them together
-                Tuple outtuple = leftTuple.joinWith(rightTuple);
-                outbatch.add(outtuple);
-            }
-            if (leftbatch.isEmpty()) {
-                leftbatch = (Batch) sortedLeft.next();
-                if (leftbatch.isEmpty()) {
-                    break; // All of left is empty already, nothing left to check
-                }
-            }
-            leftTuple = leftbatch.remove(0);
-        } 
+    public boolean close() {
+        sortedLeft.close();
+        sortedRight.close();
+        return true;
     }
 }
