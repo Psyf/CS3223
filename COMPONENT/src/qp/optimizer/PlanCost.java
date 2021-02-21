@@ -145,8 +145,8 @@ public class PlanCost {
                 joincost = leftpages * rightpages;
                 break;
             case JoinType.SORTMERGE:
-                long leftcost = calculateSortMergeCost(leftpages, numbuff);
-                long rightcost = calculateSortMergeCost(rightpages, numbuff);
+                long leftcost = calculateSortCost(leftpages, numbuff);
+                long rightcost = calculateSortCost(rightpages, numbuff);
                 long mergecost = leftpages + rightpages;
 
                 joincost = leftcost + rightcost + mergecost;
@@ -159,10 +159,10 @@ public class PlanCost {
         return outtuples;
     }
 
-    protected long calculateSortMergeCost(long numOfPages, long numBuff) {
-        double value = Math.ceil ((double)numOfPages / (double)numBuff);
-        long numOfPass = (long) 1 + new LogFunction().calculate(value, numBuff - 1);
-        long cost = 2 * numOfPages * numOfPass;
+    protected long calculateSortCost(long numOfPages, long numBuff) {
+        double sortedRuns = Math.ceil ((double)numOfPages / (double)numBuff);
+        long numOfPasses =  (long) (1 + Math.ceil(new LogFunction().calculate(sortedRuns, numBuff - 1)));
+        long cost = 2 * numOfPages * numOfPasses;
         return cost;
     }
 

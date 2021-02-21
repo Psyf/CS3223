@@ -67,8 +67,8 @@ public class SortMergeJoin extends Join  {
         Tuple leftTuple = leftbatch.remove(0);
         Tuple rightTuple = rightbatch.remove(0);
 
-        ArrayList<Tuple> tempLeft = new ArrayList<>();
-        ArrayList<Tuple> tempRight = new ArrayList<>();
+        ArrayList<Tuple> tempLeftTuples = new ArrayList<>();
+        ArrayList<Tuple> tempRightTuples = new ArrayList<>();
         
         while (sortedLeft != null && sortedRight != null) {
 
@@ -86,15 +86,15 @@ public class SortMergeJoin extends Join  {
             int compareResult = Tuple.compareTuples(leftTuple, rightTuple, leftindex, rightindex);
 
             if (compareResult == 0) {
-                tempLeft.add(leftTuple);
-                tempRight.add(rightTuple);
+                tempLeftTuples.add(leftTuple);
+                tempRightTuples.add(rightTuple);
 
                 // Left can join
                 int i = 1;
                 while (leftbatch.get(i).checkJoin(rightTuple, leftindex, rightindex)) {
                     leftTuple = getNextLeftTuple();
                     if (leftTuple == null) break;
-                    tempLeft.add(leftTuple);
+                    tempLeftTuples.add(leftTuple);
                     i++;
                 }
 
@@ -103,13 +103,13 @@ public class SortMergeJoin extends Join  {
                 while (rightbatch.get(j).checkJoin(leftTuple, leftindex, rightindex)) {
                     rightTuple = getNextRightTuple();
                     if (rightTuple == null) break;
-                    tempRight.add(rightTuple);
+                    tempRightTuples.add(rightTuple);
                     j++;
                 }
 
                 // At the end, add all these pairs as join pairs join all those in temp left and temp right
-                for (Tuple iTuple: tempLeft) {
-                    for (Tuple jTuple: tempRight) {
+                for (Tuple iTuple: tempLeftTuples) {
+                    for (Tuple jTuple: tempRightTuples) {
                         joinPairs.add(new TuplePair(iTuple, jTuple));
                     }
                 }
@@ -137,7 +137,7 @@ public class SortMergeJoin extends Join  {
         if (leftbatch == null) {
             return null;
         }
-        return leftbatch.remove(0);
+        return leftbatch.remove(0); // Have a pointer instead of remove to improve 
     }
 
     private Tuple getNextRightTuple() {

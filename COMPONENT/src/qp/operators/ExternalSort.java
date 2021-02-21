@@ -51,6 +51,7 @@ public class ExternalSort extends Operator {
         // Phase 2: Merge Sorted Runs
         mergeSortedRuns(numOfSortedRuns);
 
+        // Writing to the disk itself
         rfname = "ExternalSortTemp-" + String.valueOf(0); //TODO
         try {
             inStream = new ObjectInputStream(new FileInputStream(rfname));

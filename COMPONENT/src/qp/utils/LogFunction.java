@@ -7,8 +7,8 @@ public class LogFunction {
 
     };
 
-    public long calculate(double value, long base) {
+    public double calculate(double value, long base) {
         double answer = Math.log10(value) / Math.log10(base);
-        return (long) Math.ceil(answer);
+        return Math.ceil(answer);
     }
 }
