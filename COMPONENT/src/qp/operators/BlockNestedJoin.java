@@ -6,7 +6,7 @@ package qp.operators;
 
 import qp.utils.Attribute;
 import qp.utils.Batch;
-import qp.utils.Block;
+import qp.utils.BatchList;
 import qp.utils.Condition;
 import qp.utils.Tuple;
 
@@ -30,7 +30,7 @@ public class BlockNestedJoin extends Join {
     boolean eosl;                   // Whether end of stream (left table) is reached
     boolean eosr;                   // Whether end of stream (right table) is reached
     
-    Block block;                    // BLOCK FOR BLOCK JOIN!!
+    BatchList batchlist;            // Represents num of tuples in buffer
 
     public BlockNestedJoin(Join jn) {
         super(jn.getLeft(), jn.getRight(), jn.getConditionList(), jn.getOpType());
@@ -49,8 +49,8 @@ public class BlockNestedJoin extends Join {
         int tuplesize = schema.getTupleSize();
         batchsize = Batch.getPageSize() / tuplesize;
 
-        /** initialise the block used for the join */
-        block = new Block(tuplesize, numBuff);
+        /** initialise the batchlist used for the join */
+        batchlist = new BatchList(tuplesize, numBuff);
 
         /** find indices attributes of join conditions **/
         leftindex = new ArrayList<>();
@@ -115,10 +115,10 @@ public class BlockNestedJoin extends Join {
         outbatch = new Batch(batchsize);
         while (!outbatch.isFull()) {
             if (lcurs == 0 && eosr == true) {
-                /** reset block */
-                block.clear();
-                /** new block needs to be prepared by fetching left pages **/
-                while(block.size() < block.getBlockSize()) {
+                /** reset batchlist */
+                batchlist.clear();
+                /** new batchlist needs to be prepared by fetching left pages **/
+                while(!batchlist.isFull()) {
                     leftbatch = left.next();        // fetch a new page -> refer to next() in Scan.java
                     if (leftbatch == null) {        // no more left pages to be fetched!
                         eosl = true;
@@ -126,10 +126,10 @@ public class BlockNestedJoin extends Join {
                     }
                     int ti;                         
                     for(ti = 0; ti < leftbatch.size(); ti++) {
-                        block.add(leftbatch.get(ti));
+                        batchlist.addTuple(leftbatch.get(ti));
                     }
                 }
-                // Debug.PPrint(block);
+                // Debug.PPrint(batchlist);
                 // System.out.println("==========");
                 
                 /** Whenever a new left page came, we have to start the
@@ -149,21 +149,21 @@ public class BlockNestedJoin extends Join {
                     if (rcurs == 0 && lcurs == 0) {
                         rightbatch = (Batch) in.readObject();
                     }
-                    for (i = lcurs; i < block.size(); ++i) {
+                    for (i = lcurs; i < batchlist.size(); ++i) {
                         for (j = rcurs; j < rightbatch.size(); ++j) {
-                            Tuple lefttuple = block.get(i);
+                            Tuple lefttuple = batchlist.get(i);
                             Tuple righttuple = rightbatch.get(j);
                             if (lefttuple.checkJoin(righttuple, leftindex, rightindex)) {
                                 Tuple outtuple = lefttuple.joinWith(righttuple);
                                 outbatch.add(outtuple);
                                 if (outbatch.isFull()) {
-                                    if (i == block.size() - 1 && j == rightbatch.size() - 1) {  //case 1
+                                    if (i == batchlist.size() - 1 && j == rightbatch.size() - 1) {  //case 1
                                         lcurs = 0;
                                         rcurs = 0;
-                                    } else if (i != block.size() - 1 && j == rightbatch.size() - 1) {  //case 2
+                                    } else if (i != batchlist.size() - 1 && j == rightbatch.size() - 1) {  //case 2
                                         lcurs = i + 1;
                                         rcurs = 0;
-                                    } else if (i == block.size() - 1 && j != rightbatch.size() - 1) {  //case 3
+                                    } else if (i == batchlist.size() - 1 && j != rightbatch.size() - 1) {  //case 3
                                         lcurs = i;
                                         rcurs = j + 1;
                                     } else {

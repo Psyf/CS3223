@@ -155,9 +155,9 @@ public class Debug {
     }
 
     /**
-     * prints the tuples in a block
+     * prints the tuples in a batchlist
      **/
-    public static void PPrint(Block b) {
+    public static void PPrint(BatchList b) {
         for (int i = 0; i < b.size(); i++) {
             PPrint(b.get(i));
             System.out.println();
