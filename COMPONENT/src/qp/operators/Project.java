@@ -4,6 +4,7 @@
 
 package qp.operators;
 
+import qp.utils.AggregateValue;
 import qp.utils.Attribute;
 import qp.utils.Batch;
 import qp.utils.Schema;
@@ -29,6 +30,9 @@ public class Project extends Operator {
      * * that are to be projected
      **/
     int[] attrIndex;
+
+    AggregateValue[] aggVals;
+    Boolean isAgg = null; 
 
     public Project(Operator base, ArrayList<Attribute> as, int type) {
         super(type);
@@ -66,11 +70,17 @@ public class Project extends Operator {
          **/
         Schema baseSchema = base.getSchema();
         attrIndex = new int[attrset.size()];
+        aggVals = new AggregateValue[attrset.size()]; 
+
         for (int i = 0; i < attrset.size(); ++i) {
             Attribute attr = attrset.get(i);
+            aggVals[i] = new AggregateValue(attr.getAggType());
 
-            if (attr.getAggType() != Attribute.NONE) {
-                System.err.println("Aggragation is not implemented.");
+            // Make sure all of em are agg, or none of em are agg
+            if (isAgg == null) {
+                isAgg = (attr.getAggType() != Attribute.NONE);
+            } else if (isAgg != (attr.getAggType() != Attribute.NONE)) {
+                System.out.println("Cannot mix Aggregate Operators with others!");
                 System.exit(1);
             }
 
@@ -89,7 +99,18 @@ public class Project extends Operator {
         inbatch = base.next();
 
         if (inbatch == null) {
-            return null;
+            if (isAgg) {
+                ArrayList<Object> result = new ArrayList<>();
+                for (int i=0; i<attrset.size(); i++) {
+                    result.add(aggVals[i].get());
+                }
+                Tuple outtuple = new Tuple(result);
+                outbatch.add(outtuple);
+                isAgg = false; // hack: so that next iteration, it exits
+                return outbatch;
+            } else {
+                return null;
+            }
         }
 
         for (int i = 0; i < inbatch.size(); i++) {
@@ -99,10 +120,16 @@ public class Project extends Operator {
             ArrayList<Object> present = new ArrayList<>();
             for (int j = 0; j < attrset.size(); j++) {
                 Object data = basetuple.dataAt(attrIndex[j]);
-                present.add(data);
+                if (attrset.get(j).getAggType() != Attribute.NONE) {
+                    aggVals[j].record((int) data);
+                } else {
+                    present.add(data);
+                }
             }
-            Tuple outtuple = new Tuple(present);
-            outbatch.add(outtuple);
+            if (!isAgg) {
+                Tuple outtuple = new Tuple(present);
+                outbatch.add(outtuple);
+            }
         }
         return outbatch;
     }

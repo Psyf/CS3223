@@ -78,6 +78,7 @@ public class Scan extends Operator {
                 eos = true;
                 return tuples;
             } catch (IOException e) {
+                System.out.println(e); 
                 System.err.println("Scan:Error reading " + filename);
                 System.exit(1);
             }
