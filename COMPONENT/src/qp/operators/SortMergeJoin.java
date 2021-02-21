@@ -48,13 +48,13 @@ public class SortMergeJoin extends Join  {
             rightindex.add(right.getSchema().indexOf(rightattr));
         }
         
-        // sortedLeft = new ExternalSort(left, leftindex);
-        // sortedRight = new ExternalSort(right, rightindex);
+        sortedLeft = new ExternalSort(left, leftindex, numBuff);
+        sortedRight = new ExternalSort(right, rightindex, numBuff);
 
-        if (sortedLeft.open() && sortedRight.open()) {
-            return true;
+        if (!sortedLeft.open() || !sortedRight.open()) {
+            return false;
         }
-        return false;
+        return true;
     }
 
     public Batch next() {
@@ -165,8 +165,9 @@ public class SortMergeJoin extends Join  {
     }
 
     public boolean close() {
-        sortedLeft.close();
-        sortedRight.close();
-        return true;
+        if (sortedLeft.close() && sortedRight.close()) {
+            return true;
+        }
+        return false;
     }
 }
