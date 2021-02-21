@@ -149,6 +149,16 @@ public class Debug {
         }
     }
 
+    /**
+     * prints the tuples in a block
+     **/
+    public static void PPrint(Block b) {
+        for (int i = 0; i < b.size(); i++) {
+            PPrint(b.get(i));
+            System.out.println();
+        }
+    }
+
 }
 
 
