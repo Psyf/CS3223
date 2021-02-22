@@ -14,21 +14,25 @@ public class ExternalSort extends Operator {
     Operator disk;
     ArrayList<Integer> diskIndexes;
     int numOfBuffer;
+    String prefix;
 
     int batchsize;                  // Number of tuples per out batch
     Batch outbatch;                 // Buffer page for output
     Batch inBatch;                  // Buffer page for input
     int tuplesize;                  // Size of tuple
+    TupleReader finalReader;        // Represents the final reader for the sorted file
 
     BatchList batchlist;            // Represents num of tuples in buffer
+    int diskPointer = 0;            // Represents pointer for the disk
 
     TupleReader[] tupleReaders;     // Represents the tuple reader during the merging stage
     BatchList inputBuffers;         // Represents the input buffers during the merging stage
     int passNo;                     // Represents the current number of passes
     ArrayList<Integer> previousRunNo; // Represents the list of run number, for purpose of cleanup
 
-    public ExternalSort(Operator disk, ArrayList<Integer> diskIndexes, int numOfBuffer) {
+    public ExternalSort(String prefix, Operator disk, ArrayList<Integer> diskIndexes, int numOfBuffer) {
         super(OpType.EXTERNAL_SORT);
+        this.prefix = prefix;
         this.disk = disk;
         this.diskIndexes = diskIndexes;
         this.numOfBuffer = numOfBuffer;
@@ -36,8 +40,8 @@ public class ExternalSort extends Operator {
 
     @Override
     public boolean open() {
-        if (disk.open()) {
-            return true;
+        if (!disk.open()) {
+            return false;
         }
         /** select number of tuples per batch **/
         tuplesize = disk.getSchema().getTupleSize();
@@ -50,10 +54,17 @@ public class ExternalSort extends Operator {
             // Phase 1: Generate sorted runs
             int numOfSortedRuns = generateSortedRuns();
 
+            System.out.println("Start Phase 2");
+
             // Phase 2: Merge Sorted Runs
-            mergeSortedRuns(numOfSortedRuns);
+            initialiseMergeSortedRuns(numOfSortedRuns);
+
+            // Open a reader to the sorted file
+            finalReader = new TupleReader(getSortedRunsFileName(passNo, 0), batchsize);
+            finalReader.open(); 
         } catch (Exception ex) {
             System.out.println("Problem with external sort");
+            ex.printStackTrace();
             return false;
         }
         
@@ -64,9 +75,11 @@ public class ExternalSort extends Operator {
         int numOfSortedRuns = 0;
         inBatch = new Batch(batchsize);
         inBatch = disk.next();
+
+        diskPointer = 0;
         
         // While the disk is not empty, keep on generating sorted run
-        while (!inBatch.isEmpty()) {
+        while (inBatch != null) {
             generateSortedRun(numOfSortedRuns);
             numOfSortedRuns++;
         }
@@ -75,20 +88,24 @@ public class ExternalSort extends Operator {
     }
 
     public void generateSortedRun(int sortedRunNum) {
-        
-        int diskPointer = 0;
+
+        System.out.println("Before: " + batchlist.isFull());
 
         // Add in the values from disk to buffers until there is nothing left in the disk or 
         // the batch list is full.
-        while (!batchlist.isFull() && inBatch != null) {
+        while (!batchlist.isFull()) {
+            // Reset diskPointer to read from the first value in the next inbatch
+            diskPointer = 0;
+            
+            if (inBatch == null) break;
             while (diskPointer < inBatch.size()) {
                 Tuple nextTuple = inBatch.get(diskPointer); 
                 batchlist.addTuple(nextTuple);
                 diskPointer++;
             }
-            // Reset diskPointer to read from the first value in the next inbatch
-            diskPointer = 0;
+            
             inBatch = disk.next();
+            System.out.println("Inner loop runs:" + inBatch);
         }
 
         //Sort the batchlist 
@@ -99,18 +116,29 @@ public class ExternalSort extends Operator {
         TupleWriter currentSortedRun = new TupleWriter(sortedRunFileName, batchsize);
         int batchListPointer = 0;
         currentSortedRun.open();
+
+        System.out.println("After: " + batchlist.isFull());
         
         // Write the sorted run into disk 
         while (batchListPointer < batchlist.size()) {
             currentSortedRun.next(batchlist.get(batchListPointer));
             batchListPointer++;
         }
-        currentSortedRun.close();
+        try {
+            batchlist.clear();
+            currentSortedRun.close();
+        } catch (Exception ex) {
+            System.out.println("Error here");
+        }
+        return;
     }
 
     public void initialiseMergeSortedRuns(int numOfSortedRuns) {
         int inputBufferSize = numOfBuffer - 1;
         passNo = 1;
+
+        System.out.println("NumofSortedRuns:" + numOfSortedRuns);
+        System.out.println("Inputbuffersize:" + inputBufferSize);
 
         inputBuffers = new BatchList(tuplesize, inputBufferSize);
 
@@ -122,36 +150,43 @@ public class ExternalSort extends Operator {
     
     public void mergeSortedRuns(int numOfSortedRuns) {
         int inputBufferSize = numOfBuffer - 1;
-        int runNo = 1;
+        int runNo = 0;
 
         int start = 0;
         int end = inputBufferSize;
-        boolean lastRun = false;
+        boolean continueRun = true;
 
         previousRunNo.add(numOfSortedRuns);
 
+        System.out.println("Pass no:" + start);
+        System.out.println("Pass no:" + end);
+
         // Create a tuple reader for the previous sorted runs 
-        for (int i = 0; i < inputBufferSize; i++) {
+        for (int i = start; i < end; i++) {
+            if (i == numOfSortedRuns) {
+                end = i;
+                break;
+            }
             TupleReader reader = new TupleReader(getSortedRunsFileName(passNo - 1, i), batchsize);
             reader.open();
             tupleReaders[i] = reader;
         }
+        
 
         // Keep creating sorted runs within one pass
-        while (true) {
+        while (continueRun) {
             mergeSortedRunsBetween(start, end, tupleReaders, inputBuffers, passNo, runNo);
-            if (lastRun) break;
             
             runNo++;
             start += inputBufferSize;
             
             // If it is the last run within the pass, end should be equal to num of sorted runs
-            if (end + inputBufferSize < numOfSortedRuns) {
-                end += inputBufferSize;
-            } else {
+            if (end == numOfSortedRuns) {
                 // Last run
                 end = numOfSortedRuns;
-                lastRun = true;
+                continueRun = false;
+            } else {
+                end += inputBufferSize;
             }
         }
         // Last pass / Base case
@@ -168,6 +203,8 @@ public class ExternalSort extends Operator {
 
         Batch outBatch = new Batch(batchsize);
 
+        System.out.println("mergeSortedRunsBetween:" + start);
+
         // Only work on reading from the start to the current end 
         for (int i = start; i < end; i++) {
             TupleReader reader = tupleReaders[i];
@@ -178,37 +215,44 @@ public class ExternalSort extends Operator {
         inputBuffers.sort(diskIndexes);
         
         // Add the smallest value to the outBatch repeatedly until out batch is full
-        while (!outBatch.isFull()) {
-            outBatch.add(inputBuffers.get(0));
-            batchlist.remove(0);
+        while (!outBatch.isFull() && !inputBuffers.isEmpty()) {
+            Tuple tuple = inputBuffers.get(0);
+            outBatch.add(tuple);
+            inputBuffers.remove(0);
         }
 
+        System.out.println("Size:" + outBatch.size());
+
         // Write to disk
+        String sortedFileName = getSortedRunsFileName(passNo, runNo);
+        TupleWriter currentSortedRun = new TupleWriter(sortedFileName, batchsize);
+        currentSortedRun.open();
+
         for (int outBatchPointer = 0; outBatchPointer < outBatch.size(); outBatchPointer++) {
-            String mergeFileName = getSortedRunsFileName(passNo, runNo);
-            TupleWriter currentSortedRun = new TupleWriter(mergeFileName, batchsize);
+            System.out.println("PassNo writing to disk:" + passNo);
             currentSortedRun.next(outBatch.get(outBatchPointer));
-            outBatchPointer++;
         }
+        currentSortedRun.close();
         outBatch.clear();
     }
 
     public Batch next() {
         Batch outBatch = new Batch(batchsize);
 
-        // Open a reader to the sorted file
-        TupleReader reader = new TupleReader(getSortedRunsFileName(passNo, 1), batchsize);
-        reader.open(); 
+        if (finalReader.isEOF()) {
+            finalReader.close();
+            return null;
+        }
 
         // Add tuples from the reader until the out batch is full and return it
         while (!outBatch.isFull()) {
-            outBatch.add(reader.next());
+            outBatch.add(finalReader.next());
         }
         return outBatch;
     }
 
     private String getSortedRunsFileName(int passNo, int runNo) {
-        return "SortMergeBatch-P:" + passNo + "R:" + runNo;
+        return prefix + "-SortMergeBatch-P-" + passNo + "-R-" + runNo;
     }
 
     public boolean close() {
