@@ -15,6 +15,7 @@ import qp.utils.LogFunction;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.Buffer;
 import java.util.HashMap;
 import java.util.StringTokenizer;
 
@@ -77,6 +78,8 @@ public class PlanCost {
             return getStatistics((Project) node);
         } else if (node.getOpType() == OpType.SCAN) {
             return getStatistics((Scan) node);
+        } else if (node.getOpType() == OpType.DISTINCT) {
+            return getStatistics((Distinct) node);
         }
         System.out.println("operator is not supported");
         isFeasible = false;
@@ -89,6 +92,36 @@ public class PlanCost {
      **/
     protected long getStatistics(Project node) {
         return calculateCost(node.getBase());
+    }
+
+    protected long getStatistics(Distinct node) {
+        long numTuples = calculateCost(node.getBase());
+        long tupleSize = node.getSchema().getTupleSize(); 
+        long tuplesPerPage = Math.max(1, Batch.getPageSize() / tupleSize); 
+        long numPages = (long) Math.ceil((double) numTuples / (double) tuplesPerPage); 
+        long outputBuffers = BufferManager.getNumBuffers() - 1;
+
+        // Assume uniform distribution
+        // Assume no partition overflow
+        // Assume worst-case: no duplicates
+        // Ignore cost to output
+        // TODO: Leverage .stat file to have a better cost estimate 
+        long numPagesPerPartition = (long) Math.ceil((double) numPages / ((double) outputBuffers)); 
+
+        // System.out.println(); 
+        // System.out.printf("tupleSize = %d\n", tupleSize);
+        // System.out.printf("tuplesPerPage = %d\n", tuplesPerPage);
+        // System.out.printf("numPages = %d\n", numPages);
+        // System.out.printf("outputBuffers = %d\n", outputBuffers);
+        // System.out.printf("numPagesPerPartition = %d\n", numPagesPerPartition);
+
+        if (numPagesPerPartition > outputBuffers) {
+            this.isFeasible = false; 
+            return 0;
+        } else {
+            cost = cost + 3*numPages; 
+            return numTuples;
+        }
     }
 
     /**
@@ -140,9 +173,15 @@ public class PlanCost {
         long numbuff = BufferManager.getBuffersPerJoin();
         long joincost;
 
+        /** For block nested join */
+        long numBlocks = (long) Math.ceil((double) leftpages / (double)(numbuff - 2));
+
         switch (joinType) {
             case JoinType.NESTEDJOIN:
-                joincost = leftpages * rightpages;
+                joincost = leftpages + leftpages * rightpages;
+                break;
+            case JoinType.BLOCKNESTED:
+                joincost = leftpages + numBlocks * rightpages;
                 break;
             case JoinType.SORTMERGE:
                 long leftcost = calculateSortCost(leftpages, numbuff);
