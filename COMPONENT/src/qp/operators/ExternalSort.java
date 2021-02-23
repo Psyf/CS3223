@@ -26,16 +26,18 @@ public class ExternalSort extends Operator {
     int diskPointer = 0;            // Represents pointer for the base
 
     TupleReader[] tupleReaders;     // Represents the tuple reader during the merging stage
-    BatchList inputBuffers;         // Represents the input buffers during the merging stage
     int passNo;                     // Represents the current number of passes
     ArrayList<Integer> previousRunNo; // Represents the list of run number, for purpose of cleanup
 
-    public ExternalSort(String prefix, Operator base, ArrayList<Integer> sortIndices, int numBuffers) {
+    int direction;                  // 0 is for ASC, 1 is for DESC
+
+    public ExternalSort(String prefix, Operator base, ArrayList<Integer> sortIndices, int numBuffers, int direction) {
         super(OpType.EXTERNAL_SORT);
         this.prefix = prefix;
         this.base = base;
         this.sortIndices = sortIndices;
         this.numBuffers = numBuffers;
+        this.direction = direction; 
     }
 
     @Override
@@ -50,17 +52,27 @@ public class ExternalSort extends Operator {
 
         try {
             // Phase 1: Generate sorted runs
-            int numSortedRuns = generateSortedRuns(this.base, this.numBuffers, this.sortIndices, batchsize);
+            int numSortedRuns = generateSortedRuns(this.base, this.numBuffers, this.sortIndices, batchsize, this.direction);
 
             // System.out.println("File 0-0:" + prefix);
             // Debug.PPrint(getSortedRunsFileName(0, 0), batchsize);
             // System.out.println("File 0-1:"  + prefix);
             // Debug.PPrint(getSortedRunsFileName(0, 1), batchsize);
 
-            System.out.println("Start Phase 2");
-
             // Phase 2: Merge Sorted Runs
-            initialiseMergeSortedRuns(numSortedRuns);
+            //mergeSortedRuns(numSortedRuns, this.numBuffers);
+
+
+            
+            
+            
+            
+            // IGNORE HENCEFORTH 
+
+
+
+
+
 
             // Open a reader to the sorted file
             finalReader = new TupleReader(getSortedRunsFileName(passNo, 0), batchsize);
@@ -78,7 +90,7 @@ public class ExternalSort extends Operator {
     }
 
 
-    public int generateSortedRuns(Operator base, int numBuffers, ArrayList<Integer> sortIndices, int batchsize) {
+    public int generateSortedRuns(Operator base, int numBuffers, ArrayList<Integer> sortIndices, int batchsize, int direction) {
 
         /** initialise the batchlist used for generating sorted runs **/
         // 1 buffer reserved for output
@@ -100,7 +112,7 @@ public class ExternalSort extends Operator {
             }
 
             // sort
-            batchlist.sort(sortIndices); 
+            batchlist.sort(sortIndices, direction); 
             
             // write to output 
             // DISCLAIMER: USING ADDITIONAL BUFFER
@@ -112,7 +124,7 @@ public class ExternalSort extends Operator {
             }
             writer.close();
             
-            // // DEBUG: PLEASE COMMENT OUT
+            // DEBUG: PLEASE COMMENT OUT
             // System.out.printf(">>> SORTED RUN BELOW %d \n", numRuns+1); 
             // Debug.PPrint(batchlist);
 
@@ -125,23 +137,72 @@ public class ExternalSort extends Operator {
         return numRuns; 
     }
 
-    public void initialiseMergeSortedRuns(int numSortedRuns) {
-        int inputBufferSize = numBuffers - 1;
-        passNo = 1;
 
-        System.out.println("NumofSortedRuns:" + numSortedRuns);
-        System.out.println("Inputbuffersize:" + inputBufferSize);
 
-        inputBuffers = new BatchList(tuplesize, inputBufferSize);
+//     // TODO: PLEASE DELETE
+//     public void initialiseMergeSortedRuns(int numSortedRuns) {
+//         int inputBufferSize = numBuffers - 1;
+//         passNo = 1;
 
-        tupleReaders = new TupleReader[numSortedRuns];
-        previousRunNo = new ArrayList<>();
+//         // System.out.println("NumofSortedRuns:" + numSortedRuns);
+//         // System.out.println("Inputbuffersize:" + inputBufferSize);
 
-        mergeSortedRuns(numSortedRuns);
-    }
+//         //inputBuffers = new BatchList(tuplesize, inputBufferSize);
+
+//         tupleReaders = new TupleReader[numSortedRuns];
+//         previousRunNo = new ArrayList<>();
+
+//         //mergeSortedRuns(numSortedRuns);
+//     }
     
-    public void mergeSortedRuns(int numSortedRuns) {
+    // Tuples.compareTuples -> 
+    // 0 if equal 
+    // negative if t1 is smaller 
+    // positive if t1 is bigger
+
+    // mode = 0 = min
+    // mode = 1 = max
+    public Tuple compareTuples(Tuple t1, Tuple t2, ArrayList<Integer> sortIndices, int mode) {
+        int compareValue = Tuple.compareTuples(t1,t2, sortIndices, sortIndices);
+        if (mode == 0) { // MIN MODE
+            if (compareValue < 0) { return t1; }
+            else { return t2; }
+        } else if (mode == 1) { // MAX MODE
+            if (compareValue >= 0) { return t1; }
+            else { return t2; }
+        } else {
+            System.out.println("Please use either min or max!");
+            System.exit(1);
+            return t1; // Thanks Java you useless PoS
+        }
+    }
+
+    public void mergeSortedRuns(int numSortedRuns, int numBuffers, int batchsize, int direction) {
+
+        int numOutputRuns = 0;
+
         int inputBufferSize = numBuffers - 1;
+
+        TupleReader[] inputBuffers = new TupleReader[inputBufferSize];
+
+        for (int i = 0; i < inputBufferSize; i++) {
+            String inputFname = getSortedRunsFileName(0, i); // pass number will change
+            inputBuffers[i] = new TupleReader(inputFname, batchsize);
+            inputBuffers[i].open();
+        }
+
+        
+        String outputFname = getSortedRunsFileName(1, numOutputRuns);
+        TupleWriter outputBuffer = new TupleWriter(outputFname, batchsize); 
+
+
+        // k-way merge
+        Tuple candidateTuple;  
+        for (int i = 0; i < inputBufferSize; i++) {
+            // PICKUP FROM HERE: COMPARETUPLES WRITTEN
+        }
+
+
         int runNo = 0;
 
         int start = 0;
@@ -198,91 +259,91 @@ public class ExternalSort extends Operator {
         }
         passNo++;
         
-        mergeSortedRuns(runNo);
+        //mergeSortedRuns(runNo);
     }
 
-    public boolean mergeSortedRunsBetween(int start, int end, TupleReader[] tupleReaders, 
-        BatchList inputBuffers, int passNo, int runNo, TupleWriter currentSortedRun) {
+//     public boolean mergeSortedRunsBetween(int start, int end, TupleReader[] tupleReaders, 
+//         BatchList inputBuffers, int passNo, int runNo, TupleWriter currentSortedRun) {
 
-        Batch outBatch = new Batch(batchsize);
+//         Batch outBatch = new Batch(batchsize);
 
-        System.out.println(prefix + " mergeSortedRunsBetween:" + start + " To " + end);
+//         System.out.println(prefix + " mergeSortedRunsBetween:" + start + " To " + end);
 
-        boolean endOfReader = false;
+//         boolean endOfReader = false;
 
-        int numOfEOFFile = 0;
+//         int numOfEOFFile = 0;
 
-        // Only work on reading from the start to the current end 
-        outerloop:
-        while (!inputBuffers.isFull()) {
-            numOfEOFFile = 0;
-            for (int i = start; i < end; i++) {
-                // System.out.println("i: " + i);
-                // Check if there is any more values left in all the reader
-                if (tupleReaders[i].isEOF()) {
-                    numOfEOFFile++; 
-                    endOfReader = true;
-                } else {
-                    Tuple value = tupleReaders[i].next();
-                    if (value != null) {
-                        inputBuffers.addTuple(value);
-                    }
-                }
-                if (numOfEOFFile == (end - start)) {
-                    System.out.println("Nothing left in all readers." + tupleReaders[i].getFileName());
-                    for (TupleReader reader: tupleReaders) {
-                        if (reader != null) {
-                            reader.close();
-                        }
-                    }
-                    break outerloop;
-                }
-            }
-        }
+//         // Only work on reading from the start to the current end 
+//         outerloop:
+//         while (!inputBuffers.isFull()) {
+//             numOfEOFFile = 0;
+//             for (int i = start; i < end; i++) {
+//                 // System.out.println("i: " + i);
+//                 // Check if there is any more values left in all the reader
+//                 if (tupleReaders[i].isEOF()) {
+//                     numOfEOFFile++; 
+//                     endOfReader = true;
+//                 } else {
+//                     Tuple value = tupleReaders[i].next();
+//                     if (value != null) {
+//                         inputBuffers.addTuple(value);
+//                     }
+//                 }
+//                 if (numOfEOFFile == (end - start)) {
+//                     System.out.println("Nothing left in all readers." + tupleReaders[i].getFileName());
+//                     for (TupleReader reader: tupleReaders) {
+//                         if (reader != null) {
+//                             reader.close();
+//                         }
+//                     }
+//                     break outerloop;
+//                 }
+//             }
+//         }
 
-        if (inputBuffers == null || inputBuffers.isEmpty()) {
-            System.out.println("Empty input buffers");
-            return false;
-        }
-        // Debug.PPrint(inputBuffers);
-        //Sort the inputBuffers tuples, so that we can get the smallest value out first
-        inputBuffers.sort(sortIndices);
+//         if (inputBuffers == null || inputBuffers.isEmpty()) {
+//             System.out.println("Empty input buffers");
+//             return false;
+//         }
+//         // Debug.PPrint(inputBuffers);
+//         //Sort the inputBuffers tuples, so that we can get the smallest value out first
+//         inputBuffers.sort(sortIndices, 0);
         
-        // When the input buffer is empty, the base is empty
-        // Add the smallest value to the outBatch repeatedly until out batch is full
-        while (!outBatch.isFull() && !inputBuffers.isEmpty()) {
-            Tuple tuple = inputBuffers.get(0);
-            outBatch.add(tuple);
-            inputBuffers.remove(0);
-        }
+//         // When the input buffer is empty, the base is empty
+//         // Add the smallest value to the outBatch repeatedly until out batch is full
+//         while (!outBatch.isFull() && !inputBuffers.isEmpty()) {
+//             Tuple tuple = inputBuffers.get(0);
+//             outBatch.add(tuple);
+//             inputBuffers.remove(0);
+//         }
         
-        // Write all the values in out batch to the current sorted run
-        for (int outBatchPointer = 0; outBatchPointer < outBatch.size(); outBatchPointer++) {
-            currentSortedRun.next(outBatch.get(outBatchPointer));
-        }
-        outBatch.clear();
-        if (endOfReader && inputBuffers.isEmpty()) {
-            return false;
-        }
-        return true;
-    }
+//         // Write all the values in out batch to the current sorted run
+//         for (int outBatchPointer = 0; outBatchPointer < outBatch.size(); outBatchPointer++) {
+//             currentSortedRun.next(outBatch.get(outBatchPointer));
+//         }
+//         outBatch.clear();
+//         if (endOfReader && inputBuffers.isEmpty()) {
+//             return false;
+//         }
+//         return true;
+//     }
 
-    public Batch next() {
-        Batch outBatch = new Batch(batchsize);
-        // System.out.println("PassNo:" + passNo);
+//     public Batch next() {
+//         Batch outBatch = new Batch(batchsize);
+//         // System.out.println("PassNo:" + passNo);
 
-        if (finalReader.isEOF()) {
-            finalReader.close();
-            return null;
-        }
+//         if (finalReader.isEOF()) {
+//             finalReader.close();
+//             return null;
+//         }
 
-        // Add tuples from the reader until the out batch is full and return it
-        while (!outBatch.isFull()) {
-            outBatch.add(finalReader.next());
-        }
+//         // Add tuples from the reader until the out batch is full and return it
+//         while (!outBatch.isFull()) {
+//             outBatch.add(finalReader.next());
+//         }
         
-        return outBatch;
-    }
+//         return outBatch;
+//     }
 
     private String getSortedRunsFileName(int passNo, int runNo) {
         return prefix + "-ExternalSort-Pass-" + passNo + "-Run-" + runNo + ".tmp";
@@ -305,7 +366,7 @@ public class ExternalSort extends Operator {
         
         // Clean up variables
         batchlist.clear();
-        inputBuffers.clear();
+        //inputBuffers.clear();
         inBatch = null;
         outbatch = null;
         

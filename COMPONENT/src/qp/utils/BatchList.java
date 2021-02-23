@@ -78,7 +78,11 @@ public class BatchList {
         return batchlist.size();
     }
 
-    public void sort(ArrayList<Integer> sortIndices) {
+    public void sort(ArrayList<Integer> sortIndices, int direction) {
         Collections.sort(batchlist, new TuplesComparator(sortIndices));
+        if (direction == 1) { // 1 == DESCENDING
+            Collections.reverse(batchlist);
+        } 
     }
 }
+
