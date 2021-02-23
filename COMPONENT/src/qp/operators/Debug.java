@@ -164,6 +164,23 @@ public class Debug {
         }
     }
 
+    public static void PPrint(String filename, int batchSize) {
+        TupleReader reader = new TupleReader(filename, batchSize);
+        reader.open(); 
+        while (!reader.isEOF()) {
+            Tuple tup = reader.next(); 
+            PPrint(tup);
+        }
+    }
+
+    public static void PPrint(TupleReader tupleReader) {
+        tupleReader.open(); 
+        while (!tupleReader.isEOF()) {
+            Tuple tup = tupleReader.next(); 
+            PPrint(tup);
+        }
+    }
+
 }
 
 
