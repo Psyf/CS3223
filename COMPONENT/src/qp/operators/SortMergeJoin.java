@@ -25,6 +25,8 @@ public class SortMergeJoin extends Join  {
     int leftPointer = 0;
     int rightPointer = 0;
 
+    boolean isEndOfFile = false;
+
     public SortMergeJoin(Join jn) {
         super(jn.getLeft(), jn.getRight(), jn.getConditionList(), jn.getOpType());
         schema = jn.getSchema();
@@ -74,11 +76,14 @@ public class SortMergeJoin extends Join  {
         //         return null;
         //     }
         // }
+        // leftbatch = sortedLeft.next();
+        // rightbatch = sortedRight.next();
         Tuple leftTuple = getNextLeftTuple();
         Tuple rightTuple = getNextRightTuple();
 
-        if (leftTuple == null || rightTuple == null) {
+        if (isEndOfFile) {
             //EOF
+            System.out.println("Done");
             return null;
         }
 
@@ -88,19 +93,24 @@ public class SortMergeJoin extends Join  {
         while (!outbatch.isFull()) {
 
             if (leftTuple == null | rightTuple == null) {
+                isEndOfFile = true;
                 break;
             }
-            System.out.println(leftTuple);
-            System.out.println(rightTuple);
+            // System.out.println(leftTuple);
+            // System.out.println(rightTuple);
             
             // Haven't join finish from the previous batch, continuing joining them
             if (joinPairs.size() > 0) {
-                if (startJoinTuples() != null) {
-                    return outbatch; // Batch full, return it first
+                if (startJoinTuples()) {
+                    return outbatch; // Batch full, return it first and next will continue joining
                 }
             }
             int compareResult = Tuple.compareTuples(leftTuple, rightTuple, leftindex, rightindex);
             System.out.println(compareResult);
+
+            //TODO: Change back
+            // joinPairs.add(new TuplePair(leftTuple, rightTuple));
+            // startJoinTuples();
 
             if (compareResult == 0) {
                 System.out.println("Equal");
@@ -109,7 +119,7 @@ public class SortMergeJoin extends Join  {
 
                 // Left can join
                 int i = 1;
-                while (leftbatch.get(i).checkJoin(rightTuple, leftindex, rightindex)) {
+                while (leftbatch.size() > i && leftbatch.get(i).checkJoin(rightTuple, leftindex, rightindex)) {
                     leftTuple = getNextLeftTuple();
                     if (leftTuple == null) break;
                     tempLeftTuples.add(leftTuple);
@@ -118,7 +128,7 @@ public class SortMergeJoin extends Join  {
 
                 // Right can join
                 int j = 1;
-                while (rightbatch.get(j).checkJoin(leftTuple, leftindex, rightindex)) {
+                while (rightbatch.size() > i && rightbatch.get(j).checkJoin(leftTuple, leftindex, rightindex)) {
                     rightTuple = getNextRightTuple();
                     if (rightTuple == null) break;
                     tempRightTuples.add(rightTuple);
@@ -134,59 +144,62 @@ public class SortMergeJoin extends Join  {
 
                 System.out.println("Finish having join pairs");
 
-                // Join them together
-                if (startJoinTuples() != null) {
-                    return outbatch;
-                }
-                
+                // Join them together and return the outbatch
+                startJoinTuples();
+                return outbatch;
+            
             } else if (compareResult < 0) {
                 leftTuple = getNextLeftTuple();
+                if (leftTuple == null) break;
             } else if (compareResult > 0) {
                 rightTuple = getNextRightTuple();
+                if (rightTuple == null) break;
             }
         }
         return outbatch;
     }
 
     private Tuple getNextLeftTuple() {
+        
+        // Reads a new batch if neccessary
+        if (leftbatch == null ||leftPointer == leftbatch.size()) {
+            leftbatch = sortedLeft.next();
+            leftPointer = 0;
+        }
         // Ensures that the left batch still has tuples left
         if (leftbatch == null) {
             return null;
-        }
-        
-        // Reads a new batch if neccessary
-        if (leftPointer == leftbatch.size()) {
-            leftbatch = sortedLeft.next();
-            leftPointer = 0;
         }
         return leftbatch.get(leftPointer++); 
     }
 
     private Tuple getNextRightTuple() {
+        
+        // Reads a new batch if neccessary
+        if (rightbatch == null ||rightPointer == rightbatch.size()) {
+            rightbatch = sortedRight.next();
+            rightPointer = 0;
+        } 
         // Ensures that the right batch still has tuples left
         if (rightbatch == null) {
             return null;
         }
-        
-        // Reads a new batch if neccessary
-        if (rightPointer == rightbatch.size()) {
-            rightbatch = sortedRight.next();
-            rightPointer = 0;
-        } 
         return rightbatch.get(rightPointer++); 
     }
 
-    private Batch startJoinTuples() {
+    private boolean startJoinTuples() {
         System.out.println("Ranned here");
-        for (TuplePair joinPair: joinPairs) {
+        for (int i = 0; i < joinPairs.size(); i++) {
+            TuplePair joinPair = joinPairs.get(0);
             Tuple outtuple = joinPair.joinTuple();
-            joinPairs.remove(joinPair);
             outbatch.add(outtuple);
+            joinPairs.remove(0);
             if (outbatch.isFull()) {
-                return outbatch;
+                // Outbatch is full
+                return true;
             }
         }
-        return null;
+        return false;
     }
 
     public boolean close() {
