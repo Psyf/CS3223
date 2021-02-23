@@ -70,6 +70,10 @@ public class SQLQuery {
         }
     }
 
+    public boolean isOrderby() {
+        return this.isDesc || this.isAsc;
+    }
+
     public void setIsDesc(boolean flag) {
         isDesc = flag;
     }
