@@ -20,6 +20,8 @@ public class SortMergeJoin extends Join  {
     Batch leftbatch;                // Buffer page for left input stream
     Batch rightbatch;               // Buffer page for right input stream
 
+    boolean getNext = true;         // Represents that the next value has not been gotten yet 
+
     ArrayList<TuplePair> joinPairs = new ArrayList<>();
 
     int leftPointer = 0;
@@ -78,8 +80,17 @@ public class SortMergeJoin extends Join  {
         // }
         // leftbatch = sortedLeft.next();
         // rightbatch = sortedRight.next();
-        Tuple leftTuple = getNextLeftTuple();
-        Tuple rightTuple = getNextRightTuple();
+        Tuple leftTuple;
+        Tuple rightTuple;
+        if (getNext) {
+            leftTuple = getNextLeftTuple();
+            rightTuple = getNextRightTuple();
+        } else {
+            leftTuple = getCurrLeftTuple();
+            rightTuple = getCurrRightTuple();
+            getNext = true;
+        }
+        
 
         if (isEndOfFile) {
             //EOF
@@ -108,31 +119,29 @@ public class SortMergeJoin extends Join  {
             int compareResult = Tuple.compareTuples(leftTuple, rightTuple, leftindex, rightindex);
             System.out.println(compareResult);
 
-            //TODO: Change back
-            // joinPairs.add(new TuplePair(leftTuple, rightTuple));
-            // startJoinTuples();
-
             if (compareResult == 0) {
                 System.out.println("Equal");
                 tempLeftTuples.add(leftTuple);
                 tempRightTuples.add(rightTuple);
 
                 // Left can join
-                int i = 1;
-                while (leftbatch.size() > i && leftbatch.get(i).checkJoin(rightTuple, leftindex, rightindex)) {
+                Tuple previousLeftTuple = leftTuple;
+                leftTuple = getNextLeftTuple();
+                if (leftTuple == null) break;
+                while (leftTuple.checkJoin(rightTuple, leftindex, rightindex)) {
+                    tempLeftTuples.add(leftTuple);
+                    previousLeftTuple = leftTuple;
                     leftTuple = getNextLeftTuple();
                     if (leftTuple == null) break;
-                    tempLeftTuples.add(leftTuple);
-                    i++;
                 }
-
+                
                 // Right can join
-                int j = 1;
-                while (rightbatch.size() > i && rightbatch.get(j).checkJoin(leftTuple, leftindex, rightindex)) {
+                rightTuple = getNextRightTuple();
+                if (rightTuple == null) break;
+                while (rightTuple.checkJoin(previousLeftTuple, rightindex, leftindex)) {
+                    tempRightTuples.add(rightTuple);
                     rightTuple = getNextRightTuple();
                     if (rightTuple == null) break;
-                    tempRightTuples.add(rightTuple);
-                    j++;
                 }
 
                 // At the end, add all these pairs as join pairs join all those in temp left and temp right
@@ -141,6 +150,9 @@ public class SortMergeJoin extends Join  {
                         joinPairs.add(new TuplePair(iTuple, jTuple));
                     }
                 }
+
+                // The left tuple and right tuple has been updated, no need to fetch again
+                getNext = false; 
 
                 System.out.println("Finish having join pairs");
 
@@ -159,6 +171,10 @@ public class SortMergeJoin extends Join  {
         return outbatch;
     }
 
+    private Tuple getCurrLeftTuple() {
+        return leftbatch.get(leftPointer - 1); 
+    }
+
     private Tuple getNextLeftTuple() {
         
         // Reads a new batch if neccessary
@@ -171,6 +187,10 @@ public class SortMergeJoin extends Join  {
             return null;
         }
         return leftbatch.get(leftPointer++); 
+    }
+
+    private Tuple getCurrRightTuple() {
+        return rightbatch.get(rightPointer - 1);
     }
 
     private Tuple getNextRightTuple() {
@@ -186,6 +206,7 @@ public class SortMergeJoin extends Join  {
         }
         return rightbatch.get(rightPointer++); 
     }
+
 
     private boolean startJoinTuples() {
         System.out.println("Ranned here");
