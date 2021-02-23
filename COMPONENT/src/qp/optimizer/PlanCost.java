@@ -79,10 +79,37 @@ public class PlanCost {
             return getStatistics((Scan) node);
         } else if (node.getOpType() == OpType.DISTINCT) {
             return getStatistics((Distinct) node);
+        } else if (node.getOpType() == OpType.ORDERBY) {
+            return getStatistics((Orderby) node);
         }
         System.out.println("operator is not supported");
         isFeasible = false;
         return 0;
+    }
+
+    /**
+     * Projection will not change any statistics
+     * * No cost involved as done on the fly
+     **/
+    protected long getStatistics(Orderby node) {
+        System.out.println("Calculating cost for orderby...");
+        long numBuffers = BufferManager.getNumBuffers();
+        System.out.println(numBuffers);
+        if(numBuffers < 3) {
+            this.isFeasible = false;
+            return 0;
+        }
+        Schema schema = node.getSchema();
+        long numTuples = calculateCost(node.getBase());
+        long tuplesize = schema.getTupleSize();
+        long filesize = numTuples * tuplesize;
+        double numPages =  filesize / Batch.getPageSize();
+        double numSortedRuns = Math.ceil((double) numPages / (double) numBuffers);
+
+        // replace this with en hao's log function in utils
+        double numPasses = 1 + Math.ceil(Math.log10((double)numSortedRuns) / Math.log10((double) BufferManager.numBuffer - 1));
+        cost = 2 * (long)numPages * (long)numPasses;
+        return numTuples;
     }
 
     /**

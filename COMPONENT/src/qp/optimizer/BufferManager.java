@@ -23,6 +23,10 @@ public class BufferManager {
         return numBuffer; 
     }
 
+    public static int getNumBuffers() {
+        return numBuffer; 
+    }
+
     public static int getBuffersPerJoin() {
         return buffPerJoin;
     }

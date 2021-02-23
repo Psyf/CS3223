@@ -8,7 +8,7 @@ import qp.utils.Schema;
 
 public class Operator {
 
-    int optype;     // Whether it is OpType.SELECT/ Optype.PROJECT/OpType.JOIN
+    int optype;     // Whether it is OpType.SELECT / OpType.PROJECT / OpType.JOIN / OpType.Orderby
     Schema schema;  // Schema of the result at this operator
 
     public Operator(int type) {
