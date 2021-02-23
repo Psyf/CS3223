@@ -54,9 +54,9 @@ public class ExternalSort extends Operator {
             // Phase 1: Generate sorted runs
             int numOfSortedRuns = generateSortedRuns();
 
-            System.out.println("File 0-0:" + prefix);
+            // System.out.println("File 0-0:" + prefix);
             // Debug.PPrint(getSortedRunsFileName(0, 0), batchsize);
-            System.out.println("File 0-1"  + prefix);
+            // System.out.println("File 0-1:"  + prefix);
             // Debug.PPrint(getSortedRunsFileName(0, 1), batchsize);
 
             System.out.println("Start Phase 2");
@@ -68,8 +68,8 @@ public class ExternalSort extends Operator {
             finalReader = new TupleReader(getSortedRunsFileName(passNo, 0), batchsize);
             finalReader.open(); 
 
-            System.out.println("File 1-0"  + prefix);
-            // Debug.PPrint(getSortedRunsFileName(1, 0), batchsize);
+            System.out.println(prefix + "Compeleted file: ");
+            Debug.PPrint(getSortedRunsFileName(passNo, 0), batchsize);
         } catch (Exception ex) {
             System.out.println("Problem with external sort");
             ex.printStackTrace();
@@ -122,7 +122,7 @@ public class ExternalSort extends Operator {
         int batchListPointer = 0;
         currentSortedRun.open();
 
-        System.out.println("After: " + batchlist.isFull());
+        // System.out.println("After: " + batchlist.isFull());
         
         // Write the sorted run into disk 
         while (batchListPointer < batchlist.size()) {
@@ -161,23 +161,22 @@ public class ExternalSort extends Operator {
         int end = inputBufferSize;
         boolean continueRun = true;
 
-        System.out.println("Added previous run no: " + numOfSortedRuns);
         previousRunNo.add(numOfSortedRuns);
-
-        // Create a tuple reader for the previous sorted runs 
-        for (int i = start; i < end; i++) {
-            if (i == numOfSortedRuns) {
-                end = i;
-                break;
-            }
-            TupleReader reader = new TupleReader(getSortedRunsFileName(passNo - 1, i), batchsize);
-            reader.open();
-            tupleReaders[i] = reader;
-        }
-        
 
         // Keep creating sorted runs within one pass
         while (continueRun) {
+
+            // Create a tuple reader for the previous sorted runs 
+            for (int i = start; i < end; i++) {
+                if (i == numOfSortedRuns) {
+                    end = i;
+                    break;
+                }
+                TupleReader reader = new TupleReader(getSortedRunsFileName(passNo - 1, i), batchsize);
+                reader.open();
+                tupleReaders[i] = reader;
+                System.out.println("Reader for file: " + getSortedRunsFileName(passNo - 1, i));
+            }
             
             // Variables for writing to disk
             String sortedFileName = getSortedRunsFileName(passNo, runNo);
@@ -205,6 +204,7 @@ public class ExternalSort extends Operator {
             }
         }
         System.out.println("PassNo: " + passNo + " RunNo:" + runNo);
+        // Debug.PPrint(getSortedRunsFileName(passNo-1, runNo), batchsize);
         // Last pass / Base case
         if (runNo == 1) {
             return ;
@@ -219,7 +219,7 @@ public class ExternalSort extends Operator {
 
         Batch outBatch = new Batch(batchsize);
 
-        System.out.println("mergeSortedRunsBetween:" + start + " To " + end);
+        System.out.println(prefix + " mergeSortedRunsBetween:" + start + " To " + end);
 
         boolean endOfReader = false;
 
@@ -230,18 +230,23 @@ public class ExternalSort extends Operator {
         while (!inputBuffers.isFull()) {
             numOfEOFFile = 0;
             for (int i = start; i < end; i++) {
-                // System.out.println("Print reader");
-                // Debug.PPrint(reader);
-                Tuple value = tupleReaders[i].next();
-                if (value != null) {
-                    inputBuffers.addTuple(value);
-                }
+                // System.out.println("i: " + i);
                 // Check if there is any more values left in all the reader
-                if (tupleReaders[i].isEOF()) numOfEOFFile++; endOfReader = true;
-                if (numOfEOFFile == end) {
+                if (tupleReaders[i].isEOF()) {
+                    numOfEOFFile++; 
+                    endOfReader = true;
+                } else {
+                    Tuple value = tupleReaders[i].next();
+                    if (value != null) {
+                        inputBuffers.addTuple(value);
+                    }
+                }
+                if (numOfEOFFile == (end - start)) {
                     System.out.println("Nothing left in all readers." + tupleReaders[i].getFileName());
                     for (TupleReader reader: tupleReaders) {
-                        reader.close();
+                        if (reader != null) {
+                            reader.close();
+                        }
                     }
                     break outerloop;
                 }
@@ -277,7 +282,7 @@ public class ExternalSort extends Operator {
 
     public Batch next() {
         Batch outBatch = new Batch(batchsize);
-        System.out.println(passNo);
+        // System.out.println("PassNo:" + passNo);
 
         if (finalReader.isEOF()) {
             finalReader.close();

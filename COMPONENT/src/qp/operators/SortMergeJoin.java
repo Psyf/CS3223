@@ -120,7 +120,6 @@ public class SortMergeJoin extends Join  {
             System.out.println(compareResult);
 
             if (compareResult == 0) {
-                System.out.println("Equal");
                 tempLeftTuples.add(leftTuple);
                 tempRightTuples.add(rightTuple);
 
@@ -154,7 +153,7 @@ public class SortMergeJoin extends Join  {
                 // The left tuple and right tuple has been updated, no need to fetch again
                 getNext = false; 
 
-                System.out.println("Finish having join pairs");
+                // System.out.println("Finish having join pairs");
 
                 // Join them together and return the outbatch
                 startJoinTuples();
@@ -209,7 +208,6 @@ public class SortMergeJoin extends Join  {
 
 
     private boolean startJoinTuples() {
-        System.out.println("Ranned here");
         for (int i = 0; i < joinPairs.size(); i++) {
             TuplePair joinPair = joinPairs.get(0);
             Tuple outtuple = joinPair.joinTuple();
