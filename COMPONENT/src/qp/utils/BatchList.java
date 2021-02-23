@@ -10,7 +10,7 @@ public class BatchList {
     static int numBatches;
 
     public BatchList(int tuplesize, int numBuff) {
-        numBatches = Math.max(1, numBuff - 2);
+        numBatches = Math.max(1, numBuff);
         BatchListSize = Batch.getPageSize() / tuplesize * numBatches;
         batchlist = new ArrayList<Tuple>(numBatches);
     }
@@ -78,7 +78,7 @@ public class BatchList {
         return batchlist.size();
     }
 
-    public void sort(ArrayList<Integer> diskIndexes) {
-        Collections.sort(batchlist, new TuplesComparator(diskIndexes));
+    public void sort(ArrayList<Integer> sortIndices) {
+        Collections.sort(batchlist, new TuplesComparator(sortIndices));
     }
 }
