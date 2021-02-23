@@ -80,9 +80,8 @@ public class RandomOptimizer {
             Operator base = makeExecPlan(((Orderby) node).getBase());
             ((Orderby) node).setBase(base);
             return node;
-        } else {
-            return node;
-        }
+        } 
+        return node;
     }
 
     /**
