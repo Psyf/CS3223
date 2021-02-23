@@ -31,6 +31,10 @@ public class ExternalSort extends Operator {
         this.direction = direction; 
     }
 
+    public int getTotalNumPasses() {
+        return this.totalNumPasses;
+    }
+
     @Override
     public boolean open() {
         if (!base.open()) {
@@ -203,10 +207,10 @@ public class ExternalSort extends Operator {
         // System.out.printf("<< NumOutputRuns=%d\n", numOutputRuns); 
 
         if (numOutputRuns > 1) { return 1 + mergeSortedRuns(passNum+1, numOutputRuns, numBuffers, batchsize, direction); }
-        return 0; 
+        return 1; 
     }
 
-    private String getSortedRunsFileName(int passNo, int runNo) {
+    public String getSortedRunsFileName(int passNo, int runNo) {
         return prefix + "-ExternalSort-Pass-" + passNo + "-Run-" + runNo + ".tmp";
     }
 

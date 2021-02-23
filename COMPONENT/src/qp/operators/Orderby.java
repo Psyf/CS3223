@@ -8,6 +8,9 @@ import qp.utils.Attribute;
 import qp.utils.Batch;
 import qp.utils.Schema;
 import qp.utils.Tuple;
+import qp.utils.TupleReader;
+import qp.utils.TupleWriter;
+import qp.optimizer.BufferManager;
 
 import java.util.ArrayList;
 
@@ -28,12 +31,21 @@ public class Orderby extends Operator {
      * index of the attributes in the base operator
      * * that are to be ordered
      **/
-    int[] attrIndex;
+    ArrayList<Integer> attrIndex;
+    int direction;
+    int numBuffers;
+    ExternalSort sortedFiles;
+    ArrayList<Tuple> sortedTuples;
+    int sortedTuplesIndex;
 
-    public Orderby(Operator base, ArrayList<Attribute> as, int type) {
+    public Orderby(Operator base, ArrayList<Attribute> as, int direction, int type) {
         super(type);
         this.base = base;
         this.attrset = as;
+        this.direction = direction;
+        this.numBuffers = BufferManager.getNumBuffers();
+        this.sortedTuplesIndex = 0;
+        this.sortedTuples = new ArrayList<Tuple>();
     }
 
     public Operator getBase() {
@@ -61,22 +73,55 @@ public class Orderby extends Operator {
 
         if (!base.open()) return false;
 
+        System.out.println("Attributes to order by: ");
+        for(int i = 0; i < attrset.size(); i++) {
+            Debug.PPrint(attrset.get(i));
+        }
+        System.out.println("");
+
         /** The following loop finds the index of the columns that
          ** are required from the base operator
          **/
         Schema baseSchema = base.getSchema();
-        attrIndex = new int[attrset.size()];
+        attrIndex = new ArrayList<Integer>();
         for (int i = 0; i < attrset.size(); ++i) {
             Attribute attr = attrset.get(i);
-
+            
             if (attr.getAggType() != Attribute.NONE) {
                 System.err.println("Aggragation is not implemented.");
                 System.exit(1);
             }
 
             int index = baseSchema.indexOf(attr.getBaseAttribute());
-            attrIndex[i] = index;
+            attrIndex.add(index);
         }
+
+        // Initialise External Sort
+        sortedFiles = new ExternalSort(
+            "Orderby", 
+            this.base, 
+            this.attrIndex, 
+            this.numBuffers,
+            direction
+        );
+
+        if (!sortedFiles.open()) {
+            return false;
+        }
+        // Last pass should only have 1 run!
+        int totalNumPasses = sortedFiles.getTotalNumPasses();
+        String filename = sortedFiles.getSortedRunsFileName(totalNumPasses, 0);
+        TupleReader reader = new TupleReader(filename, this.batchsize);
+
+        reader.open(); 
+        while (!reader.isEOF()) {
+            Tuple tup = reader.next(); 
+            sortedTuples.add(tup);
+        }
+        reader.close();
+        // for(int i = 0; i < sortedTuples.size(); i++) {
+        //     Debug.PPrint(sortedTuples.get(i));
+        // }        
         return true;
     }
 
@@ -86,24 +131,14 @@ public class Orderby extends Operator {
     public Batch next() {
         outbatch = new Batch(batchsize);
         /** all the tuples in the inbuffer goes to the output buffer **/
-        inbatch = base.next();
-
-        if (inbatch == null) {
-            return null;
+        if(sortedTuplesIndex >= sortedTuples.size()) { return null; }
+        // read tuples stored in sortedTuples and write them to outbatch
+        while(outbatch.size() < outbatch.capacity()) {
+            outbatch.add(sortedTuples.get(sortedTuplesIndex));
+            sortedTuplesIndex++;
+            if(sortedTuplesIndex >= sortedTuples.size()) { return outbatch; }
         }
-
-        for (int i = 0; i < inbatch.size(); i++) {
-            Tuple basetuple = inbatch.get(i);
-            //Debug.PPrint(basetuple);
-            //System.out.println();
-            ArrayList<Object> present = new ArrayList<>();
-            for (int j = 0; j < attrset.size(); j++) {
-                Object data = basetuple.dataAt(attrIndex[j]);
-                present.add(data);
-            }
-            Tuple outtuple = new Tuple(present);
-            outbatch.add(outtuple);
-        }
+        
         return outbatch;
     }
 
@@ -113,6 +148,7 @@ public class Orderby extends Operator {
     public boolean close() {
         inbatch = null;
         base.close();
+        // sortedFiles.close();
         return true;
     }
 
@@ -121,10 +157,10 @@ public class Orderby extends Operator {
         ArrayList<Attribute> newattr = new ArrayList<>();
         for (int i = 0; i < attrset.size(); ++i)
             newattr.add((Attribute) attrset.get(i).clone());
-        Orderby newproj = new Orderby(newbase, newattr, optype);
+        Orderby newOrderby = new Orderby(newbase, newattr, this.direction, optype);
         Schema newSchema = newbase.getSchema().subSchema(newattr);
-        newproj.setSchema(newSchema);
-        return newproj;
+        newOrderby.setSchema(newSchema);
+        return newOrderby;
     }
 
 }

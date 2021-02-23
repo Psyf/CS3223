@@ -9,6 +9,7 @@ import qp.operators.*;
 import qp.utils.Attribute;
 import qp.utils.Batch;
 import qp.utils.Condition;
+import qp.utils.LogFunction;
 import qp.utils.Schema;
 
 import java.io.BufferedReader;
@@ -94,7 +95,6 @@ public class PlanCost {
     protected long getStatistics(Orderby node) {
         System.out.println("Calculating cost for orderby...");
         long numBuffers = BufferManager.getNumBuffers();
-        System.out.println(numBuffers);
         if(numBuffers < 3) {
             this.isFeasible = false;
             return 0;
@@ -103,11 +103,16 @@ public class PlanCost {
         long numTuples = calculateCost(node.getBase());
         long tuplesize = schema.getTupleSize();
         long filesize = numTuples * tuplesize;
-        double numPages =  filesize / Batch.getPageSize();
+
+        double numPages;
+        // If file is smaller than page, it will still cost 1 page I/O
+        if (filesize < Batch.getPageSize()) { numPages = 1; }
+        else { numPages =  filesize / Batch.getPageSize(); }
+        
         double numSortedRuns = Math.ceil((double) numPages / (double) numBuffers);
 
         // replace this with en hao's log function in utils
-        double numPasses = 1 + Math.ceil(Math.log10((double)numSortedRuns) / Math.log10((double) BufferManager.numBuffer - 1));
+        double numPasses = 1 + new LogFunction().calculate(numSortedRuns, BufferManager.getNumBuffers() - 1);
         cost = 2 * (long)numPages * (long)numPasses;
         return numTuples;
     }

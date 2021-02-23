@@ -130,6 +130,12 @@ public class SQLQuery {
 
     public ArrayList<Attribute> getOrderByList() { return orderbyList; }
 
+    public int getOrderByDirection() {
+        if (this.isDesc()) { return 1; }
+        // ASC
+        return 0;
+    }
+
     public int getNumJoin() {
         if (joinList == null)
             return 0;

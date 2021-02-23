@@ -111,6 +111,10 @@ public class QueryMain {
             System.out.println("Minimum 3 buffers are required for DISTINCT operator ");
             System.exit(1);
         }
+        if (isOrderby && BufferManager.getNumBuffers() < 3) {
+            System.out.println("Minimum 3 buffers are required for ORDERBY operator ");
+            System.exit(1);
+        }
     }
 
     /**

@@ -122,6 +122,10 @@ public class Debug {
             System.out.print("Distinct(");
             PPrint(((Distinct) node).getBase());
             System.out.print(")");
+        } else if (optype == OpType.ORDERBY) {
+            System.out.print("Orderby(");
+            PPrint(((Orderby) node).getBase());
+            System.out.print(")");
         }
     }
 
