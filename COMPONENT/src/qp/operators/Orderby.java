@@ -21,22 +21,13 @@ public class Orderby extends Operator {
     int batchsize;                 // Number of tuples per outbatch
 
     /**
-     * The following fields are requied during execution
-     * * of the Orderby Operator
-     **/
-    Batch inbatch;
-    Batch outbatch;
-
-    /**
      * index of the attributes in the base operator
      * * that are to be ordered
      **/
     ArrayList<Integer> attrIndex;
     int direction;
     int numBuffers;
-    ExternalSort sortedFiles;
-    ArrayList<Tuple> sortedTuples;
-    int sortedTuplesIndex;
+    ExternalSort sortedBase;
 
     public Orderby(Operator base, ArrayList<Attribute> as, int direction, int type) {
         super(type);
@@ -44,8 +35,6 @@ public class Orderby extends Operator {
         this.attrset = as;
         this.direction = direction;
         this.numBuffers = BufferManager.getNumBuffers();
-        this.sortedTuplesIndex = 0;
-        this.sortedTuples = new ArrayList<Tuple>();
     }
 
     public Operator getBase() {
@@ -70,14 +59,14 @@ public class Orderby extends Operator {
         /** set number of tuples per batch **/
         int tuplesize = schema.getTupleSize();
         batchsize = Batch.getPageSize() / tuplesize;
-
+        
         if (!base.open()) return false;
-
-        System.out.println("Attributes to order by: ");
-        for(int i = 0; i < attrset.size(); i++) {
-            Debug.PPrint(attrset.get(i));
-        }
-        System.out.println("");
+        
+        // System.out.println("Attributes to order by: ");
+        // for(int i = 0; i < attrset.size(); i++) {
+        //     Debug.PPrint(attrset.get(i));
+        // }
+        // System.out.println("");
 
         /** The following loop finds the index of the columns that
          ** are required from the base operator
@@ -86,7 +75,6 @@ public class Orderby extends Operator {
         attrIndex = new ArrayList<Integer>();
         for (int i = 0; i < attrset.size(); ++i) {
             Attribute attr = attrset.get(i);
-            
             if (attr.getAggType() != Attribute.NONE) {
                 System.err.println("Aggragation is not implemented.");
                 System.exit(1);
@@ -96,48 +84,27 @@ public class Orderby extends Operator {
             attrIndex.add(index);
         }
 
-        // Initialise External Sort
-        sortedFiles = new ExternalSort(
+        sortedBase = new ExternalSort(
             "Orderby", 
             this.base, 
             this.attrIndex, 
             this.numBuffers,
             direction
         );
-
-        if (!sortedFiles.open()) {
+        // do the external sort
+        if (!sortedBase.open()) {
             return false;
         }
-        // Last pass should only have 1 run!
-        int totalNumPasses = sortedFiles.getTotalNumPasses();
-        String filename = sortedFiles.getSortedRunsFileName(totalNumPasses, 0);
-        TupleReader reader = new TupleReader(filename, this.batchsize);
 
-        reader.open(); 
-        while (!reader.isEOF()) {
-            Tuple tup = reader.next(); 
-            sortedTuples.add(tup);
-        }
-        reader.close();
-        // for(int i = 0; i < sortedTuples.size(); i++) {
-        //     Debug.PPrint(sortedTuples.get(i));
-        // }        
         return true;
     }
 
     /**
-     * Read next tuple from operator
+     * Read next tuple from the tuple reader pointing to the last sorted run
      */
     public Batch next() {
-        outbatch = new Batch(batchsize);
-        /** all the tuples in the inbuffer goes to the output buffer **/
-        if(sortedTuplesIndex >= sortedTuples.size()) { return null; }
-        // read tuples stored in sortedTuples and write them to outbatch
-        while(outbatch.size() < outbatch.capacity()) {
-            outbatch.add(sortedTuples.get(sortedTuplesIndex));
-            sortedTuplesIndex++;
-            if(sortedTuplesIndex >= sortedTuples.size()) { return outbatch; }
-        }
+        Batch outbatch;
+        outbatch = sortedBase.next();
         
         return outbatch;
     }
@@ -146,9 +113,8 @@ public class Orderby extends Operator {
      * Close the operator
      */
     public boolean close() {
-        inbatch = null;
         base.close();
-        // sortedFiles.close();
+        sortedBase.close();
         return true;
     }
 

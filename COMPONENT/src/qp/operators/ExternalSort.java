@@ -34,10 +34,6 @@ public class ExternalSort extends Operator {
         this.direction = direction; 
     }
 
-    public int getTotalNumPasses() {
-        return this.totalNumPasses;
-    }
-
     @Override
     public boolean open() {
         if (!base.open()) {

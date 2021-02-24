@@ -63,14 +63,16 @@ public class RandomInitialPlan {
         if (numJoin != 0) {
             createJoinOp();
         }
+        if (sqlquery.getOrderByList().size() > 0) {
+            createOrderbyOp();
+        }
+        
         createProjectOp();
 
         if (sqlquery.isDistinct()) {
             createDistinctOp(); 
         }
-        if (sqlquery.getOrderByList().size() > 0) {
-            createOrderbyOp();
-        }
+        
 
         return root;
     }
@@ -84,7 +86,7 @@ public class RandomInitialPlan {
             orderbylist = new ArrayList<Attribute>();
         if (!orderbylist.isEmpty()) {
             root = new Orderby(base, orderbylist, orderbyDirection, OpType.ORDERBY);
-            Schema newSchema = base.getSchema().subSchema(orderbylist);
+            Schema newSchema = base.getSchema();
             root.setSchema(newSchema);
         }
     }
