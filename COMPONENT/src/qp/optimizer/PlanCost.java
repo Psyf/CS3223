@@ -88,12 +88,18 @@ public class PlanCost {
         return 0;
     }
 
+    public long calculateExternalSortCost(double numPages, long numBuffers) {
+        double numSortedRuns = Math.ceil((double) numPages / (double) numBuffers);
+        double numPasses = 1 + new LogFunction().calculate(numSortedRuns, numBuffers - 1);
+        return 2 * (long)numPages * (long)numPasses;
+    }
+
+
     /**
      * Projection will not change any statistics
      * * No cost involved as done on the fly
      **/
     protected long getStatistics(Orderby node) {
-        System.out.println("Calculating cost for orderby...");
         long numBuffers = BufferManager.getNumBuffers();
         if(numBuffers < 3) {
             this.isFeasible = false;
@@ -109,11 +115,8 @@ public class PlanCost {
         if (filesize < Batch.getPageSize()) { numPages = 1; }
         else { numPages =  filesize / Batch.getPageSize(); }
         
-        double numSortedRuns = Math.ceil((double) numPages / (double) numBuffers);
-
-        // replace this with en hao's log function in utils
-        double numPasses = 1 + new LogFunction().calculate(numSortedRuns, BufferManager.getNumBuffers() - 1);
-        cost = 2 * (long)numPages * (long)numPasses;
+        // additional cost after sort because TupleReader reads in last sort run
+        cost = calculateExternalSortCost(numPages, numBuffers) + (long)numPages;
         return numTuples;
     }
 
