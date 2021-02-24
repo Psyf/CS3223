@@ -97,9 +97,8 @@ public class SortMergeJoin extends Join  {
                 if (startJoinTuples()) {
                     return outbatch; // Batch full, return it first and next will continue joining
                 }
+                if (checkLeftTupleEmpty() | checkRightTupleEmpty()) break;
             }
-
-            if (checkLeftTupleEmpty() | checkRightTupleEmpty()) break;
             
             int compareResult = Tuple.compareTuples(leftTuple, rightTuple, leftindex, rightindex);
             // FOR DEBUGGING: (Uncomment)
@@ -112,10 +111,11 @@ public class SortMergeJoin extends Join  {
                 tempLeftTuples.add(leftTuple);
                 tempRightTuples.add(rightTuple);
 
-                // Left can join
+                // Check if the next left value has the same value
                 Tuple previousLeftTuple = leftTuple; // Stores the previous tuple for comparision with the right later 
                 leftTuple = getNextLeftTuple();
                 checkLeftTupleEmpty();
+                
                 while (leftTuple != null && leftTuple.checkJoin(rightTuple, leftindex, rightindex)) {
                     tempLeftTuples.add(leftTuple);
                     previousLeftTuple = leftTuple;
@@ -123,9 +123,10 @@ public class SortMergeJoin extends Join  {
                     if (checkLeftTupleEmpty()) break;
                 }
                 
-                // Right can join
+                // Check if the next right value has the same value
                 rightTuple = getNextRightTuple();
                 checkRightTupleEmpty();
+                
                 while (rightTuple != null && rightTuple.checkJoin(previousLeftTuple, rightindex, leftindex)) {
                     tempRightTuples.add(rightTuple);
                     rightTuple = getNextRightTuple();
@@ -148,11 +149,9 @@ public class SortMergeJoin extends Join  {
             
             } else if (compareResult < 0) {
                 leftTuple = getNextLeftTuple();
-                if (leftTuple == null) break;
 
             } else if (compareResult > 0) {
                 rightTuple = getNextRightTuple();
-                if (rightTuple == null) break;
             }
         }
         return outbatch;

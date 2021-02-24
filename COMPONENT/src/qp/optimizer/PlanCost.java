@@ -213,13 +213,13 @@ public class PlanCost {
 
         switch (joinType) {
             case JoinType.NESTEDJOIN:
-                // joincost = leftpages + leftpages * rightpages;
-                joincost = Integer.MAX_VALUE; //TODO: Change back
+                joincost = leftpages + leftpages * rightpages;
+                // joincost = Integer.MAX_VALUE; //TODO: Change back
                 System.out.println("Runned cost: NESTEDJOIN");
                 break;
             case JoinType.BLOCKNESTED:
-                // joincost = leftpages + numBlocks * rightpages;
-                joincost = Integer.MAX_VALUE; //TODO: Change back
+                joincost = leftpages + numBlocks * rightpages;
+                // joincost = Integer.MAX_VALUE; //TODO: Change back
                 System.out.println("Runned cost: Block nested");
                 break;
             case JoinType.SORTMERGE:
