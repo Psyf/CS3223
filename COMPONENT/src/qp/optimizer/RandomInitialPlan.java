@@ -19,12 +19,14 @@ public class RandomInitialPlan {
 
     ArrayList<Attribute> projectlist;
     ArrayList<String> fromlist;
-    ArrayList<Condition> selectionlist;   // List of select conditons
-    ArrayList<Condition> joinlist;        // List of join conditions
+    ArrayList<Condition> selectionlist;     // List of select conditons
+    ArrayList<Condition> joinlist;          // List of join conditions
     ArrayList<Attribute> groupbylist;
-    int numJoin;            // Number of joins in this query
+    ArrayList<Attribute> orderbylist;       // List of attributes to orderby
+    int numJoin;                            // Number of joins in this query
     HashMap<String, Operator> tab_op_hash;  // Table name to the Operator
-    Operator root;          // Root of the query plan tree
+    Operator root;                          // Root of the query plan tree
+    int orderbyDirection;                   // 0 - ASC, 1 - DSC
 
     public RandomInitialPlan(SQLQuery sqlquery) {
         this.sqlquery = sqlquery;
@@ -33,6 +35,8 @@ public class RandomInitialPlan {
         selectionlist = sqlquery.getSelectionList();
         joinlist = sqlquery.getJoinList();
         groupbylist = sqlquery.getGroupByList();
+        orderbylist = sqlquery.getOrderByList();
+        orderbyDirection = sqlquery.getOrderByDirection();
         numJoin = joinlist.size();
     }
 
@@ -53,24 +57,38 @@ public class RandomInitialPlan {
             System.exit(1);
         }
 
-        if (sqlquery.getOrderByList().size() > 0) {
-            System.err.println("Orderby is not implemented.");
-            System.exit(1);
-        }
-
         tab_op_hash = new HashMap<>();
         createScanOp();
         createSelectOp();
         if (numJoin != 0) {
             createJoinOp();
         }
+        if (sqlquery.getOrderByList().size() > 0) {
+            createOrderbyOp();
+        }
+        
         createProjectOp();
 
         if (sqlquery.isDistinct()) {
             createDistinctOp(); 
         }
+        
 
         return root;
+    }
+
+    /**
+     * Create Orderby Operator
+     */
+    public void createOrderbyOp() {
+        Operator base = root;
+        if (orderbylist == null)
+            orderbylist = new ArrayList<Attribute>();
+        if (!orderbylist.isEmpty()) {
+            root = new Orderby(base, orderbylist, orderbyDirection, OpType.ORDERBY);
+            Schema newSchema = base.getSchema();
+            root.setSchema(newSchema);
+        }
     }
 
     /**

@@ -9,6 +9,7 @@ import qp.operators.*;
 import qp.utils.Attribute;
 import qp.utils.Batch;
 import qp.utils.Condition;
+import qp.utils.LogFunction;
 import qp.utils.Schema;
 import qp.utils.LogFunction;
 
@@ -80,10 +81,44 @@ public class PlanCost {
             return getStatistics((Scan) node);
         } else if (node.getOpType() == OpType.DISTINCT) {
             return getStatistics((Distinct) node);
+        } else if (node.getOpType() == OpType.ORDERBY) {
+            return getStatistics((Orderby) node);
         }
         System.out.println("operator is not supported");
         isFeasible = false;
         return 0;
+    }
+
+    public long calculateExternalSortCost(double numPages, long numBuffers) {
+        double numSortedRuns = Math.ceil((double) numPages / (double) numBuffers);
+        double numPasses = 1 + new LogFunction().calculate(numSortedRuns, numBuffers - 1);
+        return 2 * (long)numPages * (long)numPasses;
+    }
+
+
+    /**
+     * Projection will not change any statistics
+     * * No cost involved as done on the fly
+     **/
+    protected long getStatistics(Orderby node) {
+        long numBuffers = BufferManager.getNumBuffers();
+        if(numBuffers < 3) {
+            this.isFeasible = false;
+            return 0;
+        }
+        Schema schema = node.getSchema();
+        long numTuples = calculateCost(node.getBase());
+        long tuplesize = schema.getTupleSize();
+        long filesize = numTuples * tuplesize;
+
+        double numPages;
+        // If file is smaller than page, it will still cost 1 page I/O
+        if (filesize < Batch.getPageSize()) { numPages = 1; }
+        else { numPages =  filesize / Batch.getPageSize(); }
+        
+        // additional cost after sort because TupleReader reads in last sort run
+        cost = calculateExternalSortCost(numPages, numBuffers) + (long)numPages;
+        return numTuples;
     }
 
     /**

@@ -19,8 +19,11 @@ public class ExternalSort extends Operator {
     int batchsize;                  // Number of tuples per out batch
     int tuplesize;                  // Size of tuple
 
-    int totalNumPasses; 
+    int lastPassIndex; 
     int direction;                  // 0 is for ASC, 1 is for DESC
+
+    Batch outBatch;
+    TupleReader inBatch; 
 
     public ExternalSort(String prefix, Operator base, ArrayList<Integer> sortIndices, int numBuffers, int direction) {
         super(OpType.EXTERNAL_SORT);
@@ -44,30 +47,19 @@ public class ExternalSort extends Operator {
         try {
             // Phase 1: Generate sorted runs
             int numSortedRuns = generateSortedRuns(this.base, this.numBuffers, this.sortIndices, this.batchsize, this.direction);
-            // System.out.printf("> Phase 1: Num Sorted Runs: %d\n", numSortedRuns); 
-
-            // System.out.println("File 0-0:" + prefix);
-            // Debug.PPrint(getSortedRunsFileName(0, 0), batchsize);
-            // System.out.println("File 0-1:"  + prefix);
-            // Debug.PPrint(getSortedRunsFileName(0, 1), batchsize);
 
             // Phase 2: Merge Sorted Runs
-            this.totalNumPasses = mergeSortedRuns(0, numSortedRuns, this.numBuffers, this.batchsize, direction);
+            this.lastPassIndex = mergeSortedRuns(0, numSortedRuns, this.numBuffers, this.batchsize, direction);
 
-            // Open a reader to the sorted file
-            // TupleReader finalReader;        // Represents the final reader for the sorted file
-            // finalReader = new TupleReader(getSortedRunsFileName(this.totalNumPasses, 0), batchsize);
-            // finalReader.open(); 
-            // while (!finalReader.isEOF()) {
-            //     Debug.PPrint(finalReader.next());
-            // }
-            // finalReader.close();
         } catch (Exception ex) {
             System.out.println("Problem with external sort");
             ex.printStackTrace();
             return false;
         }
         
+        inBatch = new TupleReader(getSortedRunsFileName(this.lastPassIndex, 0), this.batchsize);
+        inBatch.open(); 
+
         return true;
     }
 
@@ -83,7 +75,6 @@ public class ExternalSort extends Operator {
         Batch nextBatch = base.next(); 
     
         while (nextBatch != null) {
-
             while(!batchlist.isFull()) {
                 // read batches into the batchlist
                 batchlist.addBatch(nextBatch);
@@ -95,7 +86,7 @@ public class ExternalSort extends Operator {
 
             // sort
             batchlist.sort(sortIndices, direction); 
-            
+
             // write to output 
             // DISCLAIMER: USING ADDITIONAL BUFFER
             String sortedRunFileName = getSortedRunsFileName(0, numRuns); 
@@ -105,18 +96,24 @@ public class ExternalSort extends Operator {
                 writer.next(batchlist.get(i));
             }
             writer.close();
-            
-            // DEBUG: PLEASE COMMENT OUT
-            // System.out.printf(">>> SORTED RUN BELOW %d \n", numRuns+1); 
-            // Debug.PPrint(batchlist);
-
             batchlist.clear();
 
-            if (nextBatch != null) { nextBatch = base.next(); }
             numRuns++; 
         }
-
         return numRuns; 
+    }
+
+    public Batch next() {
+        if (inBatch.isEOF()) {
+            return null; 
+        }
+        outBatch = new Batch(this.batchsize);
+        while (!outBatch.isFull()) {
+            Tuple nextTuple = inBatch.next(); 
+            if (nextTuple == null) { break; }
+            else { outBatch.add(nextTuple); }
+        }
+        return outBatch; 
     }
 
     // mode = 0 = min
@@ -143,14 +140,11 @@ public class ExternalSort extends Operator {
         int unreadFileIndex = 0; 
         int numInputBuffers = numBuffers - 1;
 
-        // System.out.printf(">> Starting with Pass=%d\n", passNum); 
-
         // This WHILE loop is for the entire pass
         // Each execution of the while loop takes in k files for a k way merge sort
         // Do this until all files of this pass are done!
         while (unreadFileIndex < numSortedRuns) {
 
-            // System.out.printf(">>> Starting with File=%d\n", unreadFileIndex); 
             TupleReader[] inputBuffers = new TupleReader[numInputBuffers];
             int numOpenFiles = 0; 
 
@@ -200,19 +194,23 @@ public class ExternalSort extends Operator {
             unreadFileIndex += numOpenFiles; 
         }
 
-        // System.out.printf("<< NumOutputRuns=%d\n", numOutputRuns); 
-
         if (numOutputRuns > 1) { return 1 + mergeSortedRuns(passNum+1, numOutputRuns, numBuffers, batchsize, direction); }
-        return 0; 
+        else {
+            return 1;
+        } 
     }
 
-    private String getSortedRunsFileName(int passNo, int runNo) {
+    public String getSortedRunsFileName(int passNo, int runNo) {
         return prefix + "-ExternalSort-Pass-" + passNo + "-Run-" + runNo + ".tmp";
     }
 
     public boolean close() {
         // Clean up files 
-        cleanupTmpFiles(this.totalNumPasses);
+        cleanupTmpFiles(this.lastPassIndex);
+        inBatch.close();
+        inBatch = null;
+        outBatch.clear(); 
+        outBatch = null;
         return true;
     }
 
@@ -220,7 +218,6 @@ public class ExternalSort extends Operator {
         for (int i = 0; i <= totalNumPasses; i++) {
             int j = 0;
             while (true) {
-                System.out.printf("Deleting file: %s\n", this.getSortedRunsFileName(i, j));
                 File tmpFile = new File(this.getSortedRunsFileName(i, j)); 
                 if (!tmpFile.delete()) { break; }
                 j++; 
