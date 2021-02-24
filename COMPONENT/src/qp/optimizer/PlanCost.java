@@ -129,33 +129,27 @@ public class PlanCost {
     }
 
     protected long getStatistics(Distinct node) {
-        long numTuples = calculateCost(node.getBase());
-        long tupleSize = node.getSchema().getTupleSize(); 
-        long tuplesPerPage = Math.max(1, Batch.getPageSize() / tupleSize); 
-        long numPages = (long) Math.ceil((double) numTuples / (double) tuplesPerPage); 
-        long outputBuffers = BufferManager.getNumBuffers() - 1;
+        // EXACTLY the same as OrderBy
 
-        // Assume uniform distribution
-        // Assume no partition overflow
-        // Assume worst-case: no duplicates
-        // Ignore cost to output
-        // TODO: Leverage .stat file to have a better cost estimate 
-        long numPagesPerPartition = (long) Math.ceil((double) numPages / ((double) outputBuffers)); 
-
-        // System.out.println(); 
-        // System.out.printf("tupleSize = %d\n", tupleSize);
-        // System.out.printf("tuplesPerPage = %d\n", tuplesPerPage);
-        // System.out.printf("numPages = %d\n", numPages);
-        // System.out.printf("outputBuffers = %d\n", outputBuffers);
-        // System.out.printf("numPagesPerPartition = %d\n", numPagesPerPartition);
-
-        if (numPagesPerPartition > outputBuffers) {
-            this.isFeasible = false; 
+        long numBuffers = BufferManager.getNumBuffers();
+        if(numBuffers < 3) {
+            this.isFeasible = false;
             return 0;
-        } else {
-            cost = cost + 3*numPages; 
-            return numTuples;
         }
+        
+        Schema schema = node.getSchema();
+        long numTuples = calculateCost(node.getBase());
+        long tuplesize = schema.getTupleSize();
+        long filesize = numTuples * tuplesize;
+
+        double numPages;
+        // If file is smaller than page, it will still cost 1 page I/O
+        if (filesize < Batch.getPageSize()) { numPages = 1; }
+        else { numPages =  filesize / Batch.getPageSize(); }
+        
+        // additional cost after sort because TupleReader reads in last sort run
+        cost = calculateExternalSortCost(numPages, numBuffers) + (long)numPages;
+        return numTuples;
     }
 
     /**
