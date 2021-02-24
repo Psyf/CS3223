@@ -214,7 +214,13 @@ public class QueryMain {
 
     protected static void printTuple(Tuple t) {
         for (int i = 0; i < numAtts; ++i) {
-            Object data = t.dataAt(i);
+            Object data;
+            try {
+                data = t.dataAt(i);
+            } catch (IndexOutOfBoundsException ex) {
+                data = "";
+            }
+            
             if (data instanceof Integer) {
                 out.print(((Integer) data).intValue() + "\t");
             } else if (data instanceof Float) {

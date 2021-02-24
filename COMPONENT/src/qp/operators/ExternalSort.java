@@ -51,6 +51,8 @@ public class ExternalSort extends Operator {
             // Phase 2: Merge Sorted Runs
             this.lastPassIndex = mergeSortedRuns(0, numSortedRuns, this.numBuffers, this.batchsize, direction);
 
+            // System.out.println("File: " + getSortedRunsFileName(lastPassIndex, 0));
+            // Debug.PPrint(getSortedRunsFileName(lastPassIndex, 0), batchsize);
         } catch (Exception ex) {
             System.out.println("Problem with external sort");
             ex.printStackTrace();

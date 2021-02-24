@@ -1,0 +1,1 @@
+CUSTOMER.cid  CUSTOMER.gender  CUSTOMER.firstname  CUSTOMER.lastname  CUSTOMER.address  CART.cartid  CART.cid  CART.status  CART.remarks  CARTDETAILS.iid  CARTDETAILS.cartid  CARTDETAILS.qty  CARTDETAILS.remarks  BILL.billid  BILL.iid  BILL.amount  BILL.remarks  
