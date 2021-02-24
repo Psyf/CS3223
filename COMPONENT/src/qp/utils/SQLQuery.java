@@ -22,6 +22,8 @@ public class SQLQuery {
     ArrayList<Attribute> orderbyList;    // List of attibutes in orderby clause
 
     boolean isDistinct = false;          // Whether distinct key word appeared in select clause
+    boolean isDesc = false;              // Whether DESC key word appeared in select clause
+    boolean isAsc = false;              // Whether ASC key word appeared in select clause
 
     public SQLQuery(ArrayList<Attribute> list1, ArrayList<String> list2, ArrayList<Condition> list3) {
         projectList = list1;
@@ -68,6 +70,26 @@ public class SQLQuery {
         }
     }
 
+    public boolean isOrderby() {
+        return this.isDesc || this.isAsc;
+    }
+
+    public void setIsDesc(boolean flag) {
+        isDesc = flag;
+    }
+
+    public boolean isDesc() {
+        return isDesc;
+    }
+
+    public void setIsAsc(boolean flag) {
+        isAsc = flag;
+    }
+
+    public boolean isAsc() {
+        return isAsc;
+    }
+
     public void setIsDistinct(boolean flag) {
         isDistinct = flag;
     }
@@ -107,6 +129,12 @@ public class SQLQuery {
     public void setOrderByList(ArrayList<Attribute> list) { orderbyList = list; }
 
     public ArrayList<Attribute> getOrderByList() { return orderbyList; }
+
+    public int getOrderByDirection() {
+        if (this.isDesc()) { return 1; }
+        // ASC
+        return 0;
+    }
 
     public int getNumJoin() {
         if (joinList == null)

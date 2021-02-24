@@ -200,7 +200,7 @@ public class ExternalSort extends Operator {
         } 
     }
 
-    private String getSortedRunsFileName(int passNo, int runNo) {
+    public String getSortedRunsFileName(int passNo, int runNo) {
         return prefix + "-ExternalSort-Pass-" + passNo + "-Run-" + runNo + ".tmp";
     }
 
