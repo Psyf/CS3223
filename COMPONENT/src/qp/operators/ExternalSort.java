@@ -129,7 +129,7 @@ public class ExternalSort extends Operator {
         if (inBatch.isEOF()) {
             return null; 
         }
-        outBatch.clear(); 
+        outBatch = new Batch(this.batchsize);
         while (!outBatch.isFull()) {
             Tuple nextTuple = inBatch.next(); 
             if (nextTuple == null) { break; }
@@ -233,7 +233,9 @@ public class ExternalSort extends Operator {
         // Clean up files 
         cleanupTmpFiles(this.lastPassIndex);
         inBatch.close();
+        inBatch = null;
         outBatch.clear(); 
+        outBatch = null;
         return true;
     }
 
