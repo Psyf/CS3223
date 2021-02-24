@@ -76,10 +76,12 @@ public class RandomOptimizer {
             Operator base = makeExecPlan(((Distinct) node).getBase());
             ((Distinct) node).setBase(base);
             ((Distinct) node).setNumBuff(BufferManager.getNumBuffers());
+        } else if (node.getOpType() == OpType.ORDERBY) {
+            Operator base = makeExecPlan(((Orderby) node).getBase());
+            ((Orderby) node).setBase(base);
             return node;
-        } else {
-            return node;
-        }
+        } 
+        return node;
     }
 
     /**
