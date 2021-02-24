@@ -213,7 +213,7 @@ public class PlanCost {
 
         switch (joinType) {
             case JoinType.NESTEDJOIN:
-                //joincost = leftpages + leftpages * rightpages;
+                // joincost = leftpages + leftpages * rightpages;
                 joincost = Integer.MAX_VALUE; //TODO: Change back
                 System.out.println("Runned cost: NESTEDJOIN");
                 break;
