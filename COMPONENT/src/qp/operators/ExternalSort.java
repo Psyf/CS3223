@@ -19,8 +19,11 @@ public class ExternalSort extends Operator {
     int batchsize;                  // Number of tuples per out batch
     int tuplesize;                  // Size of tuple
 
-    int totalNumPasses; 
+    int lastPassIndex; 
     int direction;                  // 0 is for ASC, 1 is for DESC
+
+    Batch outBatch;
+    TupleReader inBatch; 
 
     public ExternalSort(String prefix, Operator base, ArrayList<Integer> sortIndices, int numBuffers, int direction) {
         super(OpType.EXTERNAL_SORT);
@@ -52,11 +55,11 @@ public class ExternalSort extends Operator {
             // Debug.PPrint(getSortedRunsFileName(0, 1), batchsize);
 
             // Phase 2: Merge Sorted Runs
-            this.totalNumPasses = mergeSortedRuns(0, numSortedRuns, this.numBuffers, this.batchsize, direction);
+            this.lastPassIndex = mergeSortedRuns(0, numSortedRuns, this.numBuffers, this.batchsize, direction);
 
             // Open a reader to the sorted file
             // TupleReader finalReader;        // Represents the final reader for the sorted file
-            // finalReader = new TupleReader(getSortedRunsFileName(this.totalNumPasses, 0), batchsize);
+            // finalReader = new TupleReader(getSortedRunsFileName(this.lastPassIndex, 0), batchsize);
             // finalReader.open(); 
             // while (!finalReader.isEOF()) {
             //     Debug.PPrint(finalReader.next());
@@ -68,6 +71,9 @@ public class ExternalSort extends Operator {
             return false;
         }
         
+        inBatch = new TupleReader(getSortedRunsFileName(this.lastPassIndex, 0), this.batchsize);
+        inBatch.open(); 
+
         return true;
     }
 
@@ -117,6 +123,19 @@ public class ExternalSort extends Operator {
         }
 
         return numRuns; 
+    }
+
+    public Batch next() {
+        if (inBatch.isEOF()) {
+            return null; 
+        }
+        outBatch.clear(); 
+        while (!outBatch.isFull()) {
+            Tuple nextTuple = inBatch.next(); 
+            if (nextTuple == null) { break; }
+            else { outBatch.add(nextTuple); }
+        }
+        return outBatch; 
     }
 
     // mode = 0 = min
@@ -203,7 +222,7 @@ public class ExternalSort extends Operator {
         // System.out.printf("<< NumOutputRuns=%d\n", numOutputRuns); 
 
         if (numOutputRuns > 1) { return 1 + mergeSortedRuns(passNum+1, numOutputRuns, numBuffers, batchsize, direction); }
-        return 0; 
+        return 1; 
     }
 
     private String getSortedRunsFileName(int passNo, int runNo) {
@@ -212,7 +231,9 @@ public class ExternalSort extends Operator {
 
     public boolean close() {
         // Clean up files 
-        cleanupTmpFiles(this.totalNumPasses);
+        cleanupTmpFiles(this.lastPassIndex);
+        inBatch.close();
+        outBatch.clear(); 
         return true;
     }
 
