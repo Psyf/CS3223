@@ -22,6 +22,9 @@ public class ExternalSort extends Operator {
     int totalNumPasses; 
     int direction;                  // 0 is for ASC, 1 is for DESC
 
+    Batch outBatch;
+    TupleReader inBatch; 
+
     public ExternalSort(String prefix, Operator base, ArrayList<Integer> sortIndices, int numBuffers, int direction) {
         super(OpType.EXTERNAL_SORT);
         this.prefix = prefix;
@@ -68,6 +71,9 @@ public class ExternalSort extends Operator {
             return false;
         }
         
+        inBatch = new TupleReader(getSortedRunsFileName(this.totalNumPasses, 0), this.batchsize);
+        inBatch.open(); 
+
         return true;
     }
 
@@ -117,6 +123,16 @@ public class ExternalSort extends Operator {
         }
 
         return numRuns; 
+    }
+
+    public Batch next() {
+        outBatch.clear(); 
+        while (!outBatch.isFull()) {
+            Tuple nextTuple = inBatch.next(); 
+            if (nextTuple == null) { break; }
+            else { outBatch.add(nextTuple); }
+        }
+        return outBatch; 
     }
 
     // mode = 0 = min
@@ -213,6 +229,8 @@ public class ExternalSort extends Operator {
     public boolean close() {
         // Clean up files 
         cleanupTmpFiles(this.totalNumPasses);
+        inBatch.close();
+        outBatch.clear(); 
         return true;
     }
 
