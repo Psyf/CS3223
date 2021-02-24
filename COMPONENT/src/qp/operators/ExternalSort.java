@@ -51,8 +51,6 @@ public class ExternalSort extends Operator {
             // Phase 2: Merge Sorted Runs
             this.lastPassIndex = mergeSortedRuns(0, numSortedRuns, this.numBuffers, this.batchsize, direction);
 
-            // System.out.println("File: " + getSortedRunsFileName(lastPassIndex, 0));
-            // Debug.PPrint(getSortedRunsFileName(lastPassIndex, 0), batchsize);
         } catch (Exception ex) {
             System.out.println("Problem with external sort");
             ex.printStackTrace();
@@ -203,7 +201,10 @@ public class ExternalSort extends Operator {
     }
 
     public String getSortedRunsFileName(int passNo, int runNo) {
-        return prefix + "-ExternalSort-Pass-" + passNo + "-Run-" + runNo + ".tmp";
+        String fileName = prefix + "-ExternalSort-Pass-" + passNo + "-Run-" + runNo + "-HC-" 
+            + this.hashCode() + ".tmp";
+        return fileName;
+        // return prefix + "-ExternalSort-Pass-" + passNo + "-Run-" + runNo + ".tmp";
     }
 
     public boolean close() {
