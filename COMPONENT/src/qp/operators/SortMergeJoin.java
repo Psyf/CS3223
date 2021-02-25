@@ -234,8 +234,11 @@ public class SortMergeJoin extends Join  {
             return true;
         }
         outbatch.clear();
+        outbatch = null;
         leftbatch.clear();
+        leftbatch = null;
         rightbatch.clear();
+        rightbatch = null;
         return false;
     }
 }
