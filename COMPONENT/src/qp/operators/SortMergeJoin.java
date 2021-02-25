@@ -97,7 +97,6 @@ public class SortMergeJoin extends Join  {
                 if (startJoinTuples()) {
                     return outbatch; // Batch full, return it first and next will continue joining
                 }
-                if (checkLeftTupleEmpty() | checkRightTupleEmpty()) break;
             }
             
             int compareResult = Tuple.compareTuples(leftTuple, rightTuple, leftindex, rightindex);

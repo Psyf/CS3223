@@ -214,12 +214,7 @@ public class QueryMain {
 
     protected static void printTuple(Tuple t) {
         for (int i = 0; i < numAtts; ++i) {
-            Object data;
-            try {
-                data = t.dataAt(i);
-            } catch (IndexOutOfBoundsException ex) {
-                data = "";
-            }
+            Object data = t.dataAt(i);
             
             if (data instanceof Integer) {
                 out.print(((Integer) data).intValue() + "\t");

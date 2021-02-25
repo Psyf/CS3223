@@ -213,18 +213,14 @@ public class PlanCost {
 
         switch (joinType) {
             case JoinType.NESTEDJOIN:
-                // joincost = leftpages + leftpages * rightpages;
-                joincost = Integer.MAX_VALUE; //TODO: Change back
-                System.out.println("Runned cost: NESTEDJOIN");
+                joincost = leftpages + leftpages * rightpages;
                 break;
             case JoinType.BLOCKNESTED:
-                // joincost = leftpages + numBlocks * rightpages;
-                joincost = Integer.MAX_VALUE; //TODO: Change back
-                System.out.println("Runned cost: Block nested");
+                joincost = leftpages + numBlocks * rightpages;
                 break;
             case JoinType.SORTMERGE:
-                long leftcost = calculateSortCost(leftpages, numbuff);
-                long rightcost = calculateSortCost(rightpages, numbuff);
+                long leftcost = calculateExternalSortCost(leftpages, numbuff);
+                long rightcost = calculateExternalSortCost(rightpages, numbuff);
                 long mergecost = leftpages + rightpages;
 
                 joincost = leftcost + rightcost + mergecost;
@@ -238,12 +234,6 @@ public class PlanCost {
         return outtuples;
     }
 
-    protected long calculateSortCost(long numOfPages, long numBuff) {
-        double sortedRuns = Math.ceil ((double)numOfPages / (double)numBuff);
-        long numOfPasses =  (long) (1 + Math.ceil(new LogFunction().calculate(sortedRuns, numBuff - 1)));
-        long cost = 2 * numOfPages * numOfPasses;
-        return cost;
-    }
 
     /**
      * Find number of incoming tuples, Using the selectivity find # of output tuples
