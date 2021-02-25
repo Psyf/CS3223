@@ -14,8 +14,8 @@ public class SortMergeJoin extends Join  {
     ExternalSort sortedRight;
 
     int batchsize;                  // Number of tuples per out batch
-    ArrayList<Integer> leftindex;   // Indices of the join attributes in left table
-    ArrayList<Integer> rightindex;  // Indices of the join attributes in right table
+    ArrayList<Integer> leftIndices;   // Indices of the join attributes in left table
+    ArrayList<Integer> rightIndices;  // Indices of the join attributes in right table
     Batch outbatch;                 // Buffer page for output
     Batch leftbatch;                // Buffer page for left input stream
     Batch rightbatch;               // Buffer page for right input stream
@@ -47,18 +47,18 @@ public class SortMergeJoin extends Join  {
         batchsize = Batch.getPageSize() / tuplesize;
 
         /** find indices attributes of join conditions **/
-        leftindex = new ArrayList<>();
-        rightindex = new ArrayList<>();
+        leftIndices = new ArrayList<>();
+        rightIndices = new ArrayList<>();
         for (Condition con : conditionList) {
             Attribute leftattr = con.getLhs();
             Attribute rightattr = (Attribute) con.getRhs();
-            leftindex.add(left.getSchema().indexOf(leftattr));
-            rightindex.add(right.getSchema().indexOf(rightattr));
+            leftIndices.add(left.getSchema().indexOf(leftattr));
+            rightIndices.add(right.getSchema().indexOf(rightattr));
         }
         
         // Get sorted left and right file using external sort
-        sortedLeft = new ExternalSort("Left", left, leftindex, numBuff, 0);
-        sortedRight = new ExternalSort("Right", right, rightindex, numBuff, 0);
+        sortedLeft = new ExternalSort("Left", left, leftIndices, numBuff, 0);
+        sortedRight = new ExternalSort("Right", right, rightIndices, numBuff, 0);
 
         if (!sortedLeft.open() || !sortedRight.open()) {
             return false;
@@ -90,7 +90,7 @@ public class SortMergeJoin extends Join  {
         
         while (!outbatch.isFull()) {
 
-            if (checkLeftTupleEmpty() | checkRightTupleEmpty()) break;
+            if (checkLeftTupleEmptyAndUpdateEOF() | checkRightTupleEmptyAndUpdateEOF()) break;
             
             // Haven't join finish from the previous batch, continuing joining them
             if (joinPairs.size() > 0) {
@@ -99,7 +99,7 @@ public class SortMergeJoin extends Join  {
                 }
             }
             
-            int compareResult = Tuple.compareTuples(leftTuple, rightTuple, leftindex, rightindex);
+            int compareResult = Tuple.compareTuples(leftTuple, rightTuple, leftIndices, rightIndices);
             // FOR DEBUGGING: (Uncomment)
             // System.out.println("Result" + compareResult);
             // Debug.PPrint(leftTuple);
@@ -113,23 +113,23 @@ public class SortMergeJoin extends Join  {
                 // Check if the next left value has the same value
                 Tuple previousLeftTuple = leftTuple; // Stores the previous tuple for comparision with the right later 
                 leftTuple = getNextLeftTuple();
-                checkLeftTupleEmpty();
+                checkLeftTupleEmptyAndUpdateEOF();
                 
-                while (leftTuple != null && leftTuple.checkJoin(rightTuple, leftindex, rightindex)) {
+                while (leftTuple != null && leftTuple.checkJoin(rightTuple, leftIndices, rightIndices)) {
                     tempLeftTuples.add(leftTuple);
                     previousLeftTuple = leftTuple;
                     leftTuple = getNextLeftTuple();
-                    if (checkLeftTupleEmpty()) break;
+                    if (checkLeftTupleEmptyAndUpdateEOF()) break;
                 }
                 
                 // Check if the next right value has the same value
                 rightTuple = getNextRightTuple();
-                checkRightTupleEmpty();
+                checkRightTupleEmptyAndUpdateEOF();
                 
-                while (rightTuple != null && rightTuple.checkJoin(previousLeftTuple, rightindex, leftindex)) {
+                while (rightTuple != null && rightTuple.checkJoin(previousLeftTuple, rightIndices, leftIndices)) {
                     tempRightTuples.add(rightTuple);
                     rightTuple = getNextRightTuple();
-                    if (checkRightTupleEmpty()) break;
+                    if (checkRightTupleEmptyAndUpdateEOF()) break;
                 }
 
                 // At the end, add all these pairs as join pairs join all those in temp left and temp right
@@ -174,7 +174,7 @@ public class SortMergeJoin extends Join  {
         return leftbatch.get(leftPointer++); 
     }
 
-    private boolean checkRightTupleEmpty() {
+    private boolean checkRightTupleEmptyAndUpdateEOF() {
         if (rightTuple == null) {
             isEndOfFile = true;
             return true;
@@ -182,7 +182,7 @@ public class SortMergeJoin extends Join  {
         return false;
     }
 
-    private boolean checkLeftTupleEmpty() {
+    private boolean checkLeftTupleEmptyAndUpdateEOF() {
         if (leftTuple == null) {
             isEndOfFile = true;
             return true;
@@ -233,6 +233,9 @@ public class SortMergeJoin extends Join  {
         if (sortedLeft.close() && sortedRight.close()) {
             return true;
         }
+        outbatch.clear();
+        leftbatch.clear();
+        rightbatch.clear();
         return false;
     }
 }
