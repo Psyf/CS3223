@@ -11,6 +11,7 @@ import qp.utils.Batch;
 import qp.utils.Condition;
 import qp.utils.LogFunction;
 import qp.utils.Schema;
+import qp.utils.LogFunction;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -211,6 +212,13 @@ public class PlanCost {
             case JoinType.BLOCKNESTED:
                 joincost = leftpages + numBlocks * rightpages;
                 break;
+            case JoinType.SORTMERGE:
+                long leftcost = calculateExternalSortCost(leftpages, numbuff);
+                long rightcost = calculateExternalSortCost(rightpages, numbuff);
+                long mergecost = leftpages + rightpages;
+
+                joincost = leftcost + rightcost + mergecost;
+                break;
             default:
                 System.out.println("join type is not supported");
                 return 0;
@@ -219,6 +227,7 @@ public class PlanCost {
 
         return outtuples;
     }
+
 
     /**
      * Find number of incoming tuples, Using the selectivity find # of output tuples

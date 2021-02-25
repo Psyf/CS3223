@@ -148,10 +148,12 @@ public class ExternalSort extends Operator {
             TupleReader[] inputBuffers = new TupleReader[numInputBuffers];
             int numOpenFiles = 0; 
 
+            // Create a tuple reader for the input buffer if the file exist
             for (int i = 0; i < numInputBuffers; i++) {
                 String inputFname = getSortedRunsFileName(passNum, i + unreadFileIndex);
                 inputBuffers[i] = new TupleReader(inputFname, batchsize);
                 if (inputBuffers[i].open()) { numOpenFiles++; }
+                else { break; }
             }
 
             String outputFname = getSortedRunsFileName(passNum+1, numOutputRuns);
@@ -201,7 +203,9 @@ public class ExternalSort extends Operator {
     }
 
     public String getSortedRunsFileName(int passNo, int runNo) {
-        return prefix + "-ExternalSort-Pass-" + passNo + "-Run-" + runNo + ".tmp";
+        String fileName = prefix + "-ExternalSort-Pass-" + passNo + "-Run-" + runNo + "-HC-" 
+            + this.hashCode() + ".tmp";
+        return fileName;
     }
 
     public boolean close() {
