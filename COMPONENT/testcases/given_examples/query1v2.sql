@@ -1,2 +1,0 @@
-SELECT CUSTOMER.cid, CUSTOMER.firstname, CUSTOMER.gender, CART.cartid, CART.status
-FROM CUSTOMER,CART
