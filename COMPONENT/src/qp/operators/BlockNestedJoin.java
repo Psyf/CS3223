@@ -50,7 +50,7 @@ public class BlockNestedJoin extends Join {
         batchsize = Batch.getPageSize() / tuplesize;
 
         /** initialise the batchlist used for the join */
-        batchlist = new BatchList(tuplesize, numBuff);
+        batchlist = new BatchList(tuplesize, numBuff-2);
 
         /** find indices attributes of join conditions **/
         leftindex = new ArrayList<>();
