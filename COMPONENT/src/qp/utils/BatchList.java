@@ -22,7 +22,7 @@ public class BatchList {
 
     /** Checks if current batchlist has exceeded max number of tuples allowed in a batchlist */
     public boolean isFull() {
-        if (batchlist.size() <= BatchListSize) {
+        if (batchlist.size() < BatchListSize) {
             return false;
         }
         return true;
