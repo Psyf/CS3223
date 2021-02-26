@@ -185,8 +185,6 @@ public class SortMergeJoin extends Join  {
 
                 // The left tuple and right tuple has been updated, no need to fetch again
                 getNext = false; 
-
-                return outbatch;
             
             } else if (compareResult < 0) {
                 leftTuple = getNextLeftTuple();
