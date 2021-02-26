@@ -1,12 +1,14 @@
 package qp.operators;
 
+import java.io.File;
 import java.util.ArrayList;
 
 import qp.utils.Attribute;
 import qp.utils.Batch;
 import qp.utils.Condition;
 import qp.utils.Tuple;
-import qp.utils.TuplePair;
+import qp.utils.TupleReader;
+import qp.utils.TupleWriter;
 
 public class SortMergeJoin extends Join  {
 
@@ -22,8 +24,6 @@ public class SortMergeJoin extends Join  {
 
     boolean getNext = true;         // Represents that the next value has not been gotten yet 
 
-    ArrayList<TuplePair> joinPairs = new ArrayList<>();
-
     int leftPointer = 0;
     int rightPointer = 0;
     int joinPointer = 0;
@@ -32,6 +32,10 @@ public class SortMergeJoin extends Join  {
     Tuple rightTuple;
 
     boolean isEndOfFile = false;
+
+    TupleReader tempJoinPairsReader = new TupleReader(getTempJoinPairsFileName(), batchsize);
+    TupleWriter tempJoinPairsWriter; // Contains the temp join pairs when the join pair batch is full
+    int tempJoinPairsCount = 0;
 
     public SortMergeJoin(Join jn) {
         super(jn.getLeft(), jn.getRight(), jn.getConditionList(), jn.getOpType());
@@ -63,6 +67,8 @@ public class SortMergeJoin extends Join  {
         if (!sortedLeft.open() || !sortedRight.open()) {
             return false;
         }
+        // Create a temp tuple writer when join pairs batch overloads
+        tempJoinPairsWriter = new TupleWriter(getTempJoinPairsFileName(), batchsize);
         return true;
     }
 
@@ -87,17 +93,22 @@ public class SortMergeJoin extends Join  {
         // Temp tuples array used for joining
         ArrayList<Tuple> tempLeftTuples = new ArrayList<>();
         ArrayList<Tuple> tempRightTuples = new ArrayList<>();
+
+        // Haven't join finish from the previous batch, continuing joining them
+        if (tempJoinPairsCount > 0) {
+            tempJoinPairsReader.open();
+            while (!outbatch.isFull() && tempJoinPairsCount > 0) {
+                outbatch.add(tempJoinPairsReader.next());
+                tempJoinPairsCount--;
+            }
+            if (tempJoinPairsCount == 0) { tempJoinPairsReader.close(); } 
+        }
+
+        if (outbatch.isFull()) { return outbatch; }
         
         while (!outbatch.isFull()) {
 
             if (checkLeftTupleEmptyAndUpdateEOF() | checkRightTupleEmptyAndUpdateEOF()) break;
-            
-            // Haven't join finish from the previous batch, continuing joining them
-            if (joinPairs.size() > 0) {
-                if (startJoinTuples()) {
-                    return outbatch; // Batch full, return it first and next will continue joining
-                }
-            }
             
             int compareResult = Tuple.compareTuples(leftTuple, rightTuple, leftIndices, rightIndices);
             // FOR DEBUGGING: (Uncomment)
@@ -132,18 +143,29 @@ public class SortMergeJoin extends Join  {
                     if (checkRightTupleEmptyAndUpdateEOF()) break;
                 }
 
-                // At the end, add all these pairs as join pairs join all those in temp left and temp right
+                // At the end, add all the join pairs to outbatch, if it is full, add them temporarily to disk
                 for (Tuple iTuple: tempLeftTuples) {
                     for (Tuple jTuple: tempRightTuples) {
-                        joinPairs.add(new TuplePair(iTuple, jTuple));
+                        Tuple joinedTuple = iTuple.joinWith(jTuple);
+                        if (outbatch.isFull()) {
+                            // Open the writer if it is writing for the first time
+                            if (tempJoinPairsCount == 0) { tempJoinPairsWriter.open(); } 
+                            tempJoinPairsWriter.next(joinedTuple);
+                            tempJoinPairsCount++;
+                        } else {
+                            outbatch.add(joinedTuple);
+                        }
                     }
                 }
+                if (tempJoinPairsCount > 0) { tempJoinPairsWriter.close(); }
+                // System.out.println("Get file");
+                // Debug.PPrint(getTempJoinPairsFileName(), batchsize);
+                // System.out.println("Out");
+                // Debug.PPrint(outbatch);
 
                 // The left tuple and right tuple has been updated, no need to fetch again
                 getNext = false; 
 
-                // Join them together and return the outbatch
-                startJoinTuples();
                 return outbatch;
             
             } else if (compareResult < 0) {
@@ -209,25 +231,25 @@ public class SortMergeJoin extends Join  {
     }
 
 
-    private boolean startJoinTuples() {
-        while(joinPointer < joinPairs.size()) {
-            TuplePair joinPair = joinPairs.get(joinPointer);
-            Tuple outtuple = joinPair.joinTuple();
-            outbatch.add(outtuple);
-            joinPointer++;
+    // private boolean startJoinTuples() {
+    //     while(joinPointer < joinPairs.size()) {
+    //         TuplePair joinPair = joinPairs.get(joinPointer);
+    //         Tuple outtuple = joinPair.joinTuple();
+    //         outbatch.add(outtuple);
+    //         joinPointer++;
             
-            if (outbatch.isFull()) {
-                return true;
-            }
+    //         if (outbatch.isFull()) {
+    //             return true;
+    //         }
 
-            // Reset the tuple and pointer at the last iteration
-            if (joinPointer == joinPairs.size()) {
-                joinPointer = 0;
-                joinPairs.clear();
-            }
-        }
-        return false;
-    }
+    //         // Reset the tuple and pointer at the last iteration
+    //         if (joinPointer == joinPairs.size()) {
+    //             joinPointer = 0;
+    //             joinPairs.clear();
+    //         }
+    //     }
+    //     return false;
+    // }
 
     public boolean close() {
         if (sortedLeft.close() && sortedRight.close()) {
@@ -239,6 +261,12 @@ public class SortMergeJoin extends Join  {
         leftbatch = null;
         rightbatch.clear();
         rightbatch = null;
+        tempJoinPairsWriter.close();
         return false;
+    }
+
+    public String getTempJoinPairsFileName() {
+        String fileName = "TempJoinPairs.tmp";
+        return fileName;
     }
 }
