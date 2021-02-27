@@ -157,7 +157,7 @@ public class PlanCost {
      * Calculates the statistics and cost of join operation
      **/
     protected long getStatistics(Join node) {
-        long numBuffers = BufferManager.getNumBuffers();
+        long numBuffers = BufferManager.getBuffersPerJoin();
         int joinType = node.getJoinType();
         
         if(numBuffers < 5 && joinType == JoinType.SORTMERGE) {
