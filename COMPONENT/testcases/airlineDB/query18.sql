@@ -1,2 +1,2 @@
-SELECT AVG(FLIGHTS.cruisingrange)
+SELECT AVG(FLIGHTS.distance)
 FROM FLIGHTS
