@@ -45,7 +45,7 @@ public class Orderby extends Operator {
         this.base = base;
     }
 
-    public ArrayList<Attribute> getProjAttr() {
+    public ArrayList<Attribute> getOrdAttr() {
         return attrset;
     }
 
