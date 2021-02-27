@@ -45,7 +45,7 @@ public class Orderby extends Operator {
         this.base = base;
     }
 
-    public ArrayList<Attribute> getProjAttr() {
+    public ArrayList<Attribute> getOrdAttr() {
         return attrset;
     }
 
@@ -124,7 +124,7 @@ public class Orderby extends Operator {
         for (int i = 0; i < attrset.size(); ++i)
             newattr.add((Attribute) attrset.get(i).clone());
         Orderby newOrderby = new Orderby(newbase, newattr, this.direction, optype);
-        Schema newSchema = newbase.getSchema().subSchema(newattr);
+        Schema newSchema = newbase.getSchema();
         newOrderby.setSchema(newSchema);
         return newOrderby;
     }

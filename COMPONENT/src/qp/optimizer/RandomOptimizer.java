@@ -383,6 +383,8 @@ public class RandomOptimizer {
             return findNodeAt(((Project) node).getBase(), joinNum);
         } else if (node.getOpType() == OpType.DISTINCT) {
             return findNodeAt(((Distinct) node).getBase(), joinNum); 
+        }  else if (node.getOpType() == OpType.ORDERBY) {
+            return findNodeAt(((Orderby) node).getBase(), joinNum); 
         } else {
             return null;
         }
@@ -409,6 +411,11 @@ public class RandomOptimizer {
             node.setSchema(base.getSchema().subSchema(attrlist));
         } else if (node.getOpType() == OpType.DISTINCT) {
             Operator base = ((Distinct) node).getBase();
+            modifySchema(base);
+            node.setSchema(base.getSchema());
+        } else if (node.getOpType() == OpType.ORDERBY) {
+            Operator base = ((Orderby) node).getBase();
+            Debug.PPrint(base.getSchema());
             modifySchema(base);
             node.setSchema(base.getSchema());
         }
