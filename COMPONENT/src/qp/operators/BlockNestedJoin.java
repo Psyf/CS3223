@@ -200,6 +200,8 @@ public class BlockNestedJoin extends Join {
      * Close the operator
      */
     public boolean close() {
+        this.getLeft().close(); 
+        this.getRight().close(); 
         File f = new File(rfname);
         f.delete();
         return true;

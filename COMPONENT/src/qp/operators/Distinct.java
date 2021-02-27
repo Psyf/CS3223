@@ -69,7 +69,6 @@ public class Distinct extends Operator {
                     done = true; 
                     break; 
                 } else {
-                    Debug.PPrint(inbatch);
                     for (int i = 0; i < inbatch.size(); i++) {
                         if (prevTuple == null) { 
                             prevTuple = inbatch.get(i); 
