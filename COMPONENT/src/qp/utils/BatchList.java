@@ -11,8 +11,8 @@ public class BatchList {
 
     public BatchList(int tuplesize, int numBuff) {
         numBatches = Math.max(1, numBuff);
-        BatchListSize = Batch.getPageSize() / tuplesize * numBatches;
-        batchlist = new ArrayList<Tuple>(numBatches);
+        BatchListSize = (Batch.getPageSize() / tuplesize) * numBatches;
+        batchlist = new ArrayList<Tuple>();
     }
 
     /** Returns size of block in bytes */
