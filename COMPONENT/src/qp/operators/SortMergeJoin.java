@@ -1,12 +1,14 @@
 package qp.operators;
 
+import java.io.File;
 import java.util.ArrayList;
 
 import qp.utils.Attribute;
 import qp.utils.Batch;
 import qp.utils.Condition;
 import qp.utils.Tuple;
-import qp.utils.TuplePair;
+import qp.utils.TupleReader;
+import qp.utils.TupleWriter;
 
 public class SortMergeJoin extends Join  {
 
@@ -22,8 +24,6 @@ public class SortMergeJoin extends Join  {
 
     boolean getNext = true;         // Represents that the next value has not been gotten yet 
 
-    ArrayList<TuplePair> joinPairs = new ArrayList<>();
-
     int leftPointer = 0;
     int rightPointer = 0;
     int joinPointer = 0;
@@ -32,6 +32,13 @@ public class SortMergeJoin extends Join  {
     Tuple rightTuple;
 
     boolean isEndOfFile = false;
+
+    int tupleClassBatchSize = batchsize > 1 ? batchsize / 2 : 1;
+
+    TupleReader tempJoinPairsReader = new TupleReader(getTempJoinPairsFileName(), tupleClassBatchSize);
+    boolean isTempJoinPairsReaderOpen = false;
+    TupleWriter tempJoinPairsWriter = new TupleWriter(getTempJoinPairsFileName(), tupleClassBatchSize); // Contains the temp join pairs when the join pair batch is full
+    int tempJoinPairsCount = 0;
 
     public SortMergeJoin(Join jn) {
         super(jn.getLeft(), jn.getRight(), jn.getConditionList(), jn.getOpType());
@@ -69,6 +76,21 @@ public class SortMergeJoin extends Join  {
     public Batch next() {
         outbatch = new Batch(batchsize);
 
+        // Haven't join finish from the previous batch, continuing joining them
+        if (tempJoinPairsCount > 0) {
+            if (!isTempJoinPairsReaderOpen) { 
+                tempJoinPairsReader.open(); 
+                isTempJoinPairsReaderOpen = true; 
+            }
+            while (!outbatch.isFull() && tempJoinPairsCount > 0) {
+                outbatch.add(tempJoinPairsReader.next());
+                tempJoinPairsCount--;
+            }
+            if (tempJoinPairsCount == 0) { tempJoinPairsReader.close(); isTempJoinPairsReaderOpen = false; } 
+        }
+
+        if (outbatch.isFull()) { return outbatch; }
+
         if (isEndOfFile) {
             return null;
         }
@@ -84,20 +106,10 @@ public class SortMergeJoin extends Join  {
             getNext = true;
         }
 
-        // Temp tuples array used for joining
-        ArrayList<Tuple> tempLeftTuples = new ArrayList<>();
-        ArrayList<Tuple> tempRightTuples = new ArrayList<>();
         
         while (!outbatch.isFull()) {
 
             if (checkLeftTupleEmptyAndUpdateEOF() | checkRightTupleEmptyAndUpdateEOF()) break;
-            
-            // Haven't join finish from the previous batch, continuing joining them
-            if (joinPairs.size() > 0) {
-                if (startJoinTuples()) {
-                    return outbatch; // Batch full, return it first and next will continue joining
-                }
-            }
             
             int compareResult = Tuple.compareTuples(leftTuple, rightTuple, leftIndices, rightIndices);
             // FOR DEBUGGING: (Uncomment)
@@ -106,9 +118,15 @@ public class SortMergeJoin extends Join  {
             // Debug.PPrint(rightTuple);
 
             if (compareResult == 0) {
+                // Temp tuples array used for joining
+                TupleWriter tempLeftTuplesWriter =  new TupleWriter(getTempLeftTuplesFileName(), tupleClassBatchSize);
+                TupleWriter tempRightTuplesWriter = new TupleWriter(getTempRightTuplesFileName(), tupleClassBatchSize);
+                tempLeftTuplesWriter.open();
+                tempRightTuplesWriter.open();
+
                 // Add them to the temp tuples to be joined later
-                tempLeftTuples.add(leftTuple);
-                tempRightTuples.add(rightTuple);
+                tempLeftTuplesWriter.next(leftTuple);
+                tempRightTuplesWriter.next(rightTuple);
 
                 // Check if the next left value has the same value
                 Tuple previousLeftTuple = leftTuple; // Stores the previous tuple for comparision with the right later 
@@ -116,7 +134,7 @@ public class SortMergeJoin extends Join  {
                 checkLeftTupleEmptyAndUpdateEOF();
                 
                 while (leftTuple != null && leftTuple.checkJoin(rightTuple, leftIndices, rightIndices)) {
-                    tempLeftTuples.add(leftTuple);
+                    tempLeftTuplesWriter.next(leftTuple);
                     previousLeftTuple = leftTuple;
                     leftTuple = getNextLeftTuple();
                     if (checkLeftTupleEmptyAndUpdateEOF()) break;
@@ -127,24 +145,46 @@ public class SortMergeJoin extends Join  {
                 checkRightTupleEmptyAndUpdateEOF();
                 
                 while (rightTuple != null && rightTuple.checkJoin(previousLeftTuple, rightIndices, leftIndices)) {
-                    tempRightTuples.add(rightTuple);
+                    tempRightTuplesWriter.next(rightTuple);
                     rightTuple = getNextRightTuple();
                     if (checkRightTupleEmptyAndUpdateEOF()) break;
                 }
 
-                // At the end, add all these pairs as join pairs join all those in temp left and temp right
-                for (Tuple iTuple: tempLeftTuples) {
-                    for (Tuple jTuple: tempRightTuples) {
-                        joinPairs.add(new TuplePair(iTuple, jTuple));
+                tempLeftTuplesWriter.close();
+                tempRightTuplesWriter.close();
+
+                // Initialise the tuple readers to read the left tuples and right tuples required for joining
+                TupleReader tempLeftTuplesReader =  new TupleReader(getTempLeftTuplesFileName(), tupleClassBatchSize);
+                TupleReader tempRightTuplesReader = new TupleReader(getTempRightTuplesFileName(), tupleClassBatchSize);
+                tempLeftTuplesReader.open();
+                tempRightTuplesReader.open();
+
+                // At the end, add all the join pairs to outbatch, if it is full, add them temporarily to disk
+                while (!tempLeftTuplesReader.isEOF()) {
+                    Tuple leftTuple = tempLeftTuplesReader.next();
+                    
+                    while (!tempRightTuplesReader.isEOF()) {
+                        Tuple rightTuple = tempRightTuplesReader.next();
+                        Tuple joinedTuple = leftTuple.joinWith(rightTuple);
+    
+                        if (outbatch.isFull()) {
+                            // Open the writer if it is writing for the first time
+                            if (tempJoinPairsCount == 0) { tempJoinPairsWriter.open(); } 
+                            tempJoinPairsWriter.next(joinedTuple);
+                            tempJoinPairsCount++;
+                            
+                        } else {
+                            outbatch.add(joinedTuple);
+                        }
                     }
                 }
 
+                tempLeftTuplesReader.close();
+                tempRightTuplesReader.close();
+                if (tempJoinPairsCount > 0) { tempJoinPairsWriter.close(); }
+
                 // The left tuple and right tuple has been updated, no need to fetch again
                 getNext = false; 
-
-                // Join them together and return the outbatch
-                startJoinTuples();
-                return outbatch;
             
             } else if (compareResult < 0) {
                 leftTuple = getNextLeftTuple();
@@ -208,37 +248,30 @@ public class SortMergeJoin extends Join  {
         return rightbatch.get(rightPointer++); 
     }
 
-
-    private boolean startJoinTuples() {
-        while(joinPointer < joinPairs.size()) {
-            TuplePair joinPair = joinPairs.get(joinPointer);
-            Tuple outtuple = joinPair.joinTuple();
-            outbatch.add(outtuple);
-            joinPointer++;
-            
-            if (outbatch.isFull()) {
-                return true;
-            }
-
-            // Reset the tuple and pointer at the last iteration
-            if (joinPointer == joinPairs.size()) {
-                joinPointer = 0;
-                joinPairs.clear();
-            }
-        }
-        return false;
-    }
-
     public boolean close() {
-        if (sortedLeft.close() && sortedRight.close()) {
-            return true;
+        if (!sortedLeft.close() && !sortedRight.close()) {
+            return false;
         }
         outbatch.clear();
         outbatch = null;
-        leftbatch.clear();
         leftbatch = null;
-        rightbatch.clear();
         rightbatch = null;
-        return false;
+        tempJoinPairsWriter.close();
+        tempJoinPairsReader.close();
+        cleanupTmpFiles();
+        return true;
     }
+
+    public void cleanupTmpFiles() {
+        File joinPairFile = new File(getTempJoinPairsFileName()); 
+        joinPairFile.delete();
+        File leftTuplesFile = new File(getTempLeftTuplesFileName()); 
+        leftTuplesFile.delete();
+        File rightTuplesFile = new File(getTempRightTuplesFileName()); 
+        rightTuplesFile.delete();
+    }
+
+    public String getTempJoinPairsFileName() { return "TempJoinPairs.tmp"; }
+    public String getTempLeftTuplesFileName() { return "TempLeftTuples.tmp"; }
+    public String getTempRightTuplesFileName() { return "TempRightTuples.tmp"; }
 }

@@ -157,6 +157,14 @@ public class PlanCost {
      * Calculates the statistics and cost of join operation
      **/
     protected long getStatistics(Join node) {
+        long numBuffers = BufferManager.getNumBuffers();
+        int joinType = node.getJoinType();
+        
+        if(numBuffers < 5 && joinType == JoinType.SORTMERGE) {
+            this.isFeasible = false;
+            return 0;
+        }
+
         long lefttuples = calculateCost(node.getLeft());
         long righttuples = calculateCost(node.getRight());
 
@@ -198,7 +206,6 @@ public class PlanCost {
         long outtuples = (long) Math.ceil(tuples);
 
         /** Calculate the cost of the operation **/
-        int joinType = node.getJoinType();
         long numbuff = BufferManager.getBuffersPerJoin();
         long joincost;
 
