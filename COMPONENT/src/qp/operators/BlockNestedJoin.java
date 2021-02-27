@@ -45,7 +45,6 @@ public class BlockNestedJoin extends Join {
      * * Opens the connections
      **/
     public boolean open() {
-        System.out.println("Started new join!"); 
         /** select number of tuples per batch **/
         int tuplesize = schema.getTupleSize();
         batchsize = Batch.getPageSize() / tuplesize;
@@ -109,10 +108,7 @@ public class BlockNestedJoin extends Join {
      * from input buffers selects the tuples satisfying join condition
      * * And returns a page of output tuples
      **/
-    public Batch next() {
-        System.out.printf("%s : Called Next!\n", rfname); 
-        int i, j;
-
+    public Batch next() { 
         outbatch = new Batch(batchsize);
         while (!outbatch.isFull()) {
 
@@ -129,12 +125,10 @@ public class BlockNestedJoin extends Join {
                 /** new batchlist needs to be prepared by fetching left pages **/
                 while(!leftBlock.isFull()) {
                     leftbatch = left.next();        // fetch a new page -> refer to next() in Scan.java
-                    if (leftbatch == null) {        // no more left pages to be fetched!
-                        System.out.printf(">> %s : Done Reading Left File!\n", rfname); 
+                    if (leftbatch == null) {        // no more left pages to be fetched! 
                         doneReadingLeftFile = true;
                         break; 
                     } else {
-                        System.out.printf(">> %s : Reading new Left Page!\n", rfname); 
                         leftBlock.addBatch(leftbatch);
                     }
                 }
@@ -150,24 +144,12 @@ public class BlockNestedJoin extends Join {
                 }
             }
 
-            // for every B in L:
-            //      for every P in R:
-            //          for every tuple in B:
-            //              for every tuple in P:
-            //                  if canJoin: add to output
-            //                  if output is full what do we do?
             while (doneReadingRightFile == false || rightPageCur != 0) {
-                System.out.printf("%s : %b\n", rfname, doneReadingRightFile); 
-                System.out.println(rightPageCur); 
-                System.out.println(leftBlockCur); 
                 if (rightPageCur == 0 && leftBlockCur == 0) {
                     try {
                         rightPage = (Batch) in.readObject();
-                        System.out.printf(">> %s Read new Right Page!\n", rfname); 
                     } catch (EOFException e) {
-                        System.out.printf(">> %s : Reached EOF %d %d!\n", rfname, leftBlockCur, rightPageCur); 
                         doneReadingRightFile = true;
-                        System.out.println(">> Set doneReadingRightFile to true!\n"); 
                         try { in.close(); break; } 
                         catch (IOException io) { System.out.println("BlockNestedJoin: Error in reading temporary file"); } 
                     } catch (ClassNotFoundException c) {
@@ -179,25 +161,13 @@ public class BlockNestedJoin extends Join {
                     }
                 }
                 for (; leftBlockCur < leftBlock.size(); leftBlockCur++) {
-                    System.out.printf(">>> %s : Left block cursor, size = %d, %d\n", rfname, leftBlockCur, leftBlock.size());
                     Tuple lefttuple = leftBlock.get(leftBlockCur);
-                    if ((int)lefttuple.dataAt(leftindex.get(0)) == 30) {
-                        System.out.printf(">> %s: Found this mf\n", rfname); 
-                        Debug.PPrint(lefttuple);
-                    }
                     for (; rightPageCur < rightPage.size(); rightPageCur++) {
-                        System.out.printf(">>>> %s : Right page cursor = %d\n", rfname, rightPageCur);
                         Tuple righttuple = rightPage.get(rightPageCur);
                         if (lefttuple.checkJoin(righttuple, leftindex, rightindex)) {
-                            System.out.printf(">> %s: Found a Join!\n", rfname);
-                            // Debug.PPrint(lefttuple);
-                            // Debug.PPrint(righttuple); 
                             Tuple outtuple = lefttuple.joinWith(righttuple);
-                            Debug.PPrint(outtuple);
                             outbatch.add(outtuple);
                             if (outbatch.isFull()) {
-                                // save position and return
-                                System.out.printf(">> %s: Writing to ouubatch because full!\n", rfname); 
                                 rightPageCur++;
                                 return outbatch;
                             }
@@ -209,7 +179,6 @@ public class BlockNestedJoin extends Join {
                 leftBlockCur = 0; 
             }
         }
-        System.out.printf(">> %s : Writing to ouubatch because broke!!", rfname); 
         return outbatch;
     }
 
