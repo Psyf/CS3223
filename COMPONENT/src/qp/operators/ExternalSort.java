@@ -211,10 +211,14 @@ public class ExternalSort extends Operator {
     public boolean close() {
         // Clean up files 
         cleanupTmpFiles(this.lastPassIndex);
-        inBatch.close();
-        inBatch = null;
-        outBatch.clear(); 
-        outBatch = null;
+        if (inBatch != null) {
+            inBatch.close();
+            inBatch = null; 
+        }
+        if (outBatch != null) {
+            outBatch.clear();
+            outBatch = null;
+        }
         return true;
     }
 

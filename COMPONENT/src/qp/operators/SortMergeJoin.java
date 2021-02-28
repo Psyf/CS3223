@@ -254,8 +254,7 @@ public class SortMergeJoin extends Join  {
         }
         this.getLeft().close(); 
         this.getRight().close(); 
-        outbatch.clear();
-        outbatch = null;
+        if (outbatch != null) { outbatch.clear(); outbatch = null; }
         leftbatch = null;
         rightbatch = null;
         tempJoinPairsWriter.close();
