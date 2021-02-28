@@ -19,20 +19,25 @@ output_file = sys.argv[2]
 # echo 1 | java QueryMain query7.sql query7BNJ.result 5000 12 | grep "Execution time"
 
 with open('experiment1.csv', mode='w') as expr1_results:
-    fieldnames = ["Page size", "Num Buffers", "Time Taken"]
+    fieldnames = ["Page size", "Num Buffers", "Time Taken", "Query Plan"]
     writer = csv.DictWriter(expr1_results, fieldnames=fieldnames)
     writer.writeheader()
 
     for page_size in range(INITIAL_PAGE_SIZE, FINAL_PAGE_SIZE + 1, 512):
         for buffer_size in range(INITIAL_BUFFER_SIZE, FINAL_BUFFER_SIZE + 1, 5):
-            command = f'echo 1 | java QueryMain {input_file} {output_file} {page_size} {buffer_size} | grep "Execution time"'
-            execution_time = os.popen(command).read()
+            command = f'echo 1 | java QueryMain {input_file} {output_file} {page_size} {buffer_size} | grep -A 1 -e "Execution Plan" -e "Execution time"'
+            output_logs = os.popen(command).read()
+            query_plan, execution_time = output_logs.split("\n")[1], output_logs.split("\n")[3]
             if execution_time == "":
                 execution_time = "-"
             else: 
                 execution_time = float(execution_time.split(" ")[3])
 
-            writer.writerow({"Page size": page_size, "Num Buffers": buffer_size, "Time Taken": execution_time})
-        
+            writer.writerow({"Page size": page_size, "Num Buffers": buffer_size, "Time Taken": execution_time, "Query Plan": query_plan})
+
+# command = f'echo 1 | java QueryMain {input_file} {output_file} 5000 12 | grep -A 1 -e "Execution Plan" -e "Execution time"'
+# output_logs = os.popen(command).read()
+# query_plan, execution_time = output_logs.split("\n")[1], output_logs.split("\n")[3]
+# print(query_plan, execution_time)
 
 print("=== Experiment 1 Completed===")
