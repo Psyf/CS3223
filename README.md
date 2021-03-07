@@ -49,6 +49,18 @@ Another additional caveat is that the Aggregate Functions use INTEGERS instead o
 ### Poor Constraint Enforcement (Spotted - Not Fixed)
 * During Sample Data Creation, the FK constraints are not respected. Furthermore, Composite Primary Keys were not possible, and multiple primary keys in the same table were treated as separate PKey Columns. These bugs were spotted but not fixed. 
 
+## Experiments
+* We tested the correctness of our queries by running our sample queries on PostgreSQL. (See [here](testcases/../COMPONENT/testcases/utils/docker-compose.yml) for the PostgreSQL setup)
+* Each sample query can be found in [here](COMPONENT/testcases/airlineDB) with their corresponding `.out` files that contain the results.
+### Experiment 1 
+* [query1.sql](COMPONENT/testcases/airlineDB/query1.sql)
+* [query2.sql](COMPONENT/testcases/airlineDB/query2.sql)
+* [query3.sql](COMPONENT/testcases/airlineDB/query3.sql)
+### Experiment 2
+* [query21.sql](COMPONENT/testcases/airlineDB/query21.sql)
+### Report
+* Check out our experimental results [here](CS3223-report.pdf)!
+
 
 
 
